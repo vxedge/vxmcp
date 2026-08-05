@@ -1,0 +1,14 @@
+# Changelog
+
+All notable changes to this repo are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
+[Semantic Versioning](https://semver.org/) — see `docs/VERSIONING.md` in the `docs` repo.
+
+## [Unreleased]
+
+### Added
+- Repo scaffolding: workspace `Cargo.toml`, `crates/vxmcp`, CI (build/test/clippy/fmt/deny),
+  `AGENTS.md`/`CLAUDE.md`/`TASKS.md` (2026-08-06).
+- `experiment_status` — first tool, read-only, proves the wrapper pattern end to end: a direct
+  1:1 call to `ExperimentService.Status` over the same Unix-socket connection pattern
+  `vxedge-cli` already uses.

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # vxedge-api is a git dependency on the private vxedge repo (Cargo.toml) — cargo's own
+      # git fetching needs authenticated https for that host, same pattern vxperiments' own
+      # cross-repo CI job already uses (docs/TASKS.md #18). Requires VXEDGE_CROSS_REPO_TOKEN
+      # to be added to *this* repo's own secrets (repo-scoped, not inherited from vxperiments'
+      # — a human/admin action, not done by this workflow file existing).
+      - name: Configure git for the private vxedge-api dependency
+        run: |
+          git config --global url."https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --workspace
+      - name: Test
+        run: cargo test --workspace
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Format
+        run: cargo fmt --check
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure git for the private vxedge-api dependency
+        run: |
+          git config --global url."https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check

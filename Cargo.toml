@@ -1,0 +1,39 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/vxmcp",
+]
+
+[workspace.package]
+publish = false
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vxedge/vxmcp"
+
+[workspace.dependencies]
+# vxedge-api is generated tonic bindings over vxAPI (proto/vxedge/v1/), owned by the vxedge
+# repo — vxmcp is not part of that Cargo workspace (separate repo), so this is a git
+# dependency, pinned to a commit for reproducibility rather than tracking a branch.
+# `vxedge/AGENTS.md`'s own hard rule applies here too: never hand-edit generated code, and
+# never re-derive the RPC surface — this is the one and only source of it.
+vxedge-api = { git = "https://github.com/vxedge/vxedge", rev = "79f6be9a89c6e47e584750a1efe781497ca8d377" }
+
+# >=3.1.1 specifically: that's the release that shipped MRTR-state exposure to tool handlers
+# and cache-hint emission from the handler macros (checked against the crate's own release
+# notes 2026-08-06, not assumed) — the two spec-2026-07-28 features this design leans on.
+# `transport-io` is what gates `transport::stdio` (confirmed via the compiler, not guessed) —
+# `server`/`macros` are already on by default per the crate's own docs.
+rmcp = { version = "3.1.1", features = ["transport-io"] }
+tonic = "0.14"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std"] }
+tower = "0.5"
+hyper-util = "0.1"
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
