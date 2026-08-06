@@ -35,9 +35,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure git for the private vxedge-api dependency
-        run: |
-          git config --global url."https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      # No git-config step here: cargo-deny-action runs in its own Docker container
+      # (action.yml: `runs.using: docker`),
+      # which does NOT inherit the runner's global ~/.gitconfig — a `git config --global` step
+      # here (as the `rust` job above uses) silently has no effect inside it, confirmed by
+      # comparing the two jobs' failure logs (the `rust` job's URL rewrite took effect, this
+      # job's did not). The action ships its own `credentials` input instead: its
+      # `entrypoint.sh` writes this value verbatim as one line into $HOME/.git-credentials
+      # inside the container and enables `credential.helper store` (verified by reading
+      # entrypoint.sh directly, not assumed from the input's one-line description).
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+          credentials: "https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com"
