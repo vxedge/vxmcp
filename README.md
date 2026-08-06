@@ -7,7 +7,7 @@ multi-step workflow baked into the server. Targets MCP spec 2026-07-28 on
 
 Part of the [vxedge](https://github.com/vxedge) program — see
 [`docs/ARCHITECTURE.md`](https://github.com/vxedge/docs/blob/main/ARCHITECTURE.md) §5.1 for
-where this sits among the other frontends (CLI, Qt/QML dashboard, web dashboard), and
+where this sits among the other frontends (CLI, web dashboard), and
 [`docs/TASKS.md`](https://github.com/vxedge/docs/blob/main/TASKS.md) for the phase-3 board
 item this repo tracks.
 

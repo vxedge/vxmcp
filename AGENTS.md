@@ -54,6 +54,27 @@ before trusting it (it's caller-controlled input, same trust boundary as any oth
 field), then complete on the retry. See `rmcp`'s own `examples/servers/src/mrtr.rs` for the
 full pattern before building the first mutating tool.
 
+**The "no `initialize` handshake" claim above is specifically about *modern* clients** —
+confirmed against the spec text itself
+(`modelcontextprotocol.io/specification/2026-07-28/basic/lifecycle`), not just `rmcp`'s API
+surface, after a live test briefly looked like it contradicted this (`vxmcp/TASKS.md` #1's
+follow-up, 2026-08-06). The spec keeps `initialize` as a *legacy* (2025-11-25-and-earlier)
+mechanism for backward compatibility; a modern client instead carries `protocolVersion` and
+`clientCapabilities` in every request's `_meta` and gets served with no session at all. Two
+things follow, both already true of `VxmcpServer`, kept true deliberately rather than by
+accident:
+- **`ServerHandler::supported_protocol_versions()` must stay narrowed to
+  `&[ProtocolVersion::V_2026_07_28]`.** `rmcp`'s own default returns *every* protocol version
+  the SDK knows, so its default `initialize` handler will echo back whatever version a legacy
+  client requests — found live when a real MCP inspector client silently negotiated down to
+  `2025-11-25`. Narrowing it means a legacy client instead gets an honest `2026-07-28` answer
+  and must accept it or disconnect, never talk this server down to an older revision.
+- A legacy-flow client (one that still opens with `initialize`) is not thereby unsupported —
+  `rmcp` answers it correctly once the version above is pinned — but the modern, handshake-free
+  path is the one this design is actually built for. Don't take a working `initialize`-based
+  test as proof of "no handshake"; verify the handshake-free path directly (one request, no
+  `initialize`, protocol version in `_meta`) when spec conformance is the thing being checked.
+
 ## Read tools first, mutating tools once MRTR is reviewed
 
 - **Read tools** (`experiment status`, `zone/compute list`, `job watch`, `events subscribe`,
