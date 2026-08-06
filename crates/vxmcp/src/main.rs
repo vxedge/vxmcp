@@ -97,6 +97,17 @@ impl ServerHandler for VxmcpServer {
                     .to_string(),
             )
     }
+
+    /// Narrows `rmcp`'s default `initialize` negotiation (which otherwise echoes back
+    /// whatever version the client requests, out of every version this SDK knows —
+    /// found live 2026-08-06, a real MCP inspector client negotiated down to 2025-11-25
+    /// silently) to exactly the one version `AGENTS.md`/`ARCHITECTURE.md` §5.1 commit this
+    /// server to. A client that asks for anything else gets `get_info()`'s
+    /// `V_2026_07_28` back instead of an echo — per spec, its choice then is to accept that
+    /// answer or disconnect, not to talk this server into an older protocol.
+    fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
+        std::borrow::Cow::Borrowed(&[ProtocolVersion::V_2026_07_28])
+    }
 }
 
 #[tokio::main]

@@ -64,15 +64,43 @@ Phase 3 (`docs/TASKS.md`) — frontend/tooling investment, not gate-blocking. Ma
       (nonexistent workspace): propagates as a proper JSON-RPC error with `vxedged`'s own
       honest message (`cannot read manifest ... No such file or directory`), not a swallowed or
       generic failure.
-      **Found while testing, not yet resolved**: the inspector's own client negotiated
-      `protocolVersion: "2025-11-25"` in its `initialize` request, and a real `initialize`/
-      `initialized` handshake did happen over stdio — contradicting this repo's own
-      `AGENTS.md`/`ARCHITECTURE.md §5.1` claim that spec 2026-07-28 is "stateless
-      request-response, no `initialize` handshake." Either the inspector CLI (v2.1.0) hasn't
-      caught up to 2026-07-28 itself, or that claim needs re-checking against the spec text
-      directly rather than assumed from `rmcp`'s own `get_info()` API surface. Not investigated
-      further here — out of scope for a smoke test — but the docs' claim should be re-verified
-      before anything is built that depends on statelessness (e.g. #3's MRTR design).
+      **Follow-up, resolved 2026-08-06 — protocol-version enforcement, done properly.** The
+      inspector's client had negotiated down to `protocolVersion: "2025-11-25"` in an
+      `initialize` handshake, initially logged above as a possible contradiction of this
+      repo's "stateless, no handshake" claim. Root-caused instead of left as a flag:
+      1. Read `rmcp` 3.1.1's own source
+         (`~/.cargo/registry/.../rmcp-3.1.1/src/service/server.rs`,
+         `negotiate_protocol_version`): the server's default `initialize` handler **echoes
+         back whatever version the client requests**, as long as it's in
+         `supported_protocol_versions()` — which defaults to *every* version the SDK knows
+         (2024-11-05 through 2026-07-28). `VxmcpServer` only set `get_info()`'s protocol
+         version, never narrowed the supported set, so any legacy client got served silently.
+         Fixed: `ServerHandler::supported_protocol_versions()` now returns
+         `&[ProtocolVersion::V_2026_07_28]` only (`crates/vxmcp/src/main.rs`) — a client
+         requesting anything else gets `2026-07-28` back instead of an echo, per spec
+         (its choice then is to accept or disconnect, not talk this server down).
+      2. Fetched the actual spec text
+         (`modelcontextprotocol.io/specification/2026-07-28/basic/lifecycle`) rather than
+         trust `rmcp`'s API surface or the earlier flag: **the `initialize` handshake is
+         explicitly scoped to "legacy" versions (2025-11-25 and earlier) only.** "Modern"
+         (2026-07-28+) clients skip it entirely — every request carries `protocolVersion` and
+         `clientCapabilities` in `_meta`, server accepts/rejects per request, no session, no
+         negotiation. This repo's own "stateless, no handshake" claim was accurate all along;
+         the earlier flag was a testing artifact (both the inspector and the first manual
+         script used the legacy `initialize` entry point), not a doc bug.
+      3. Verified all three cases live against a real `vxedged` + `exp-001-ws`, raw JSON-RPC
+         over stdio (no inspector — v2.1.0 doesn't implement modern 2026-07-28 requests
+         itself, confirmed by it rejecting the narrowed server's honest `2026-07-28` answer
+         with "Server's protocol version is not supported"): (a) a legacy client requesting
+         `2025-11-25` now gets refused down to `2026-07-28` and must disconnect — narrowing
+         confirmed working; (b) a legacy client explicitly requesting `2026-07-28` completes
+         the (legacy-shaped) handshake and gets correct live data back; (c) a genuine modern
+         client — one `tools/call` request, no `initialize`, `_meta` carrying
+         `io.modelcontextprotocol/protocolVersion` + `clientCapabilities` — gets served
+         directly (`peer_info=None` in the log: no session ever created) with correct live
+         data, `resultType: "complete"` confirming the 2026-07-28 wire shape is genuinely
+         active, not just the version string. `vxmcp` now provably speaks — and only speaks —
+         real MCP spec 2026-07-28, in both its legacy-compatible and modern-native forms.
 ### The open board — 4 items, in unblock order
 
 | # | Task | State |
