@@ -52,29 +52,38 @@ Phase 3 (`docs/TASKS.md`) — frontend/tooling investment, not gate-blocking. Ma
       `ProtocolVersion::V_2026_07_28` explicitly. Unit-tested (arg deserialization); not yet
       live-tested against a running `vxedged` or through an actual MCP client/inspector — see
       below.
-- [ ] **Live end-to-end smoke test**: `cargo run -p vxmcp` against a real `vxedged`, called
+### The open board — 5 items, in unblock order
+
+| # | Task | State |
+|---|---|---|
+| 1 | Live end-to-end smoke test | **in progress** |
+| 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | open |
+| 3 | MRTR confirmation flow for mutating tools | open |
+| 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
+| 5 | Real deployment (systemd unit / process supervision) | open |
+
+- [ ] **#1 — Live end-to-end smoke test**: `cargo run -p vxmcp` against a real `vxedged`, called
       through `npx @modelcontextprotocol/inspector` or a real agent client, confirming the tool
       actually round-trips (not just that it compiles and unit-tests). Needs a running
-      `vxedged` + a real experiment workspace, neither available in the environment that
-      authored this scaffold.
-- [ ] **Read tools, the rest of the safe slice**: `zone/compute list`, `job watch`,
+      `vxedged` + a real experiment workspace.
+- [ ] **#2 — Read tools, the rest of the safe slice**: `zone/compute list`, `job watch`,
       `events subscribe`, a results-archive summary. Same shape as `experiment_status` — one
       module per vxAPI service under `crates/vxmcp/src/tools/`, one `#[tool]` method per RPC
-      dispatching to it. No design question, no dependency on the item below.
-- [ ] **MRTR confirmation flow for mutating tools** (`up`/`down`/`traffic up`) — the design
+      dispatching to it. No design question, no dependency on #3.
+- [ ] **#3 — MRTR confirmation flow for mutating tools** (`up`/`down`/`traffic up`) — the design
       point this repo's own `AGENTS.md` states but hasn't built: return `InputRequiredResult`
       with an `InputRequest::Elicitation` asking the caller to confirm, verify the echoed
       `requestState` (caller-controlled input) before trusting it, complete on the retry. See
       `rmcp`'s own `examples/servers/src/mrtr.rs` for the reference pattern. Needs a design
       pass on exactly what confirmation text/schema each mutating tool asks for before wiring
       the RPCs themselves — not assumed here, and not started.
-- [ ] **Publish the manifest JSON Schema as a `vxparts` `ctl`-class part**
+- [ ] **#4 — Publish the manifest JSON Schema as a `vxparts` `ctl`-class part**
       (`vxparts/TASKS.md` already tracks the schema-generation half, `parts/ctl/schema/
       config/manifest-schema`) — once it exists, `vxmcp`'s tool argument schemas for anything
       manifest-shaped could validate against the same source of truth instead of hand-writing
-      `schemars`-derived structs that could drift from it. Not blocking the tools above, which
-      take simple scalar arguments (a path, an id) with nothing manifest-shaped yet.
-- [ ] **Real deployment**: a systemd unit / process-supervision story once this leaves
+      `schemars`-derived structs that could drift from it. Not blocking #2, which takes simple
+      scalar arguments (a path, an id) with nothing manifest-shaped yet.
+- [ ] **#5 — Real deployment**: a systemd unit / process-supervision story once this leaves
       scaffold-and-prove-the-pattern stage — mirrors `vxedge-tray`'s own "pairs with a systemd
       unit for vxedged" note (`ARCHITECTURE.md` §5.1), not designed here.
 
