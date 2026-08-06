@@ -49,23 +49,39 @@ Phase 3 (`docs/TASKS.md`) — frontend/tooling investment, not gate-blocking. Ma
       reinvented, since it's already proven. Takes an explicit `workspace` path argument rather
       than resolving from a working directory the way the CLI does: an MCP tool call has no
       meaningful "current directory" of its own caller. `ServerHandler::get_info()` advertises
-      `ProtocolVersion::V_2026_07_28` explicitly. Unit-tested (arg deserialization); not yet
-      live-tested against a running `vxedged` or through an actual MCP client/inspector — see
-      below.
-### The open board — 5 items, in unblock order
+      `ProtocolVersion::V_2026_07_28` explicitly.
+- [x] **#1 — Live end-to-end smoke test, done 2026-08-06.** Built `vxedged`/`vxedge-cli`
+      release binaries, ran a real `vxedged` on a scratch Unix socket
+      (`unix:///tmp/vxmcp-smoke.sock`, unprivileged, no gateway calls needed for this), pointed
+      it at `vxperiments/experiments/exp-001-ws` (a real workspace, not a fixture). Confirmed
+      with the CLI directly first (`vxedge experiment status` — `exp-001: 1 resource(s) /
+      vxgateway [1] no gateway provisioned`), then drove `vxmcp` through
+      `npx @modelcontextprotocol/inspector --cli` (the real MCP inspector, not a hand-rolled
+      client): `tools/list` returns `experiment_status` with its real generated JSON Schema;
+      `tools/call` against the live workspace returns `vxgateway [state=1] no gateway
+      provisioned` — matches the CLI's own report, confirming the whole chain (MCP client →
+      `vxmcp` → `vxedged` → real workspace) round-trips correctly. Also checked the error path
+      (nonexistent workspace): propagates as a proper JSON-RPC error with `vxedged`'s own
+      honest message (`cannot read manifest ... No such file or directory`), not a swallowed or
+      generic failure.
+      **Found while testing, not yet resolved**: the inspector's own client negotiated
+      `protocolVersion: "2025-11-25"` in its `initialize` request, and a real `initialize`/
+      `initialized` handshake did happen over stdio — contradicting this repo's own
+      `AGENTS.md`/`ARCHITECTURE.md §5.1` claim that spec 2026-07-28 is "stateless
+      request-response, no `initialize` handshake." Either the inspector CLI (v2.1.0) hasn't
+      caught up to 2026-07-28 itself, or that claim needs re-checking against the spec text
+      directly rather than assumed from `rmcp`'s own `get_info()` API surface. Not investigated
+      further here — out of scope for a smoke test — but the docs' claim should be re-verified
+      before anything is built that depends on statelessness (e.g. #3's MRTR design).
+### The open board — 4 items, in unblock order
 
 | # | Task | State |
 |---|---|---|
-| 1 | Live end-to-end smoke test | **in progress** |
 | 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | open |
 | 3 | MRTR confirmation flow for mutating tools | open |
 | 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
 | 5 | Real deployment (systemd unit / process supervision) | open |
 
-- [ ] **#1 — Live end-to-end smoke test**: `cargo run -p vxmcp` against a real `vxedged`, called
-      through `npx @modelcontextprotocol/inspector` or a real agent client, confirming the tool
-      actually round-trips (not just that it compiles and unit-tests). Needs a running
-      `vxedged` + a real experiment workspace.
 - [ ] **#2 — Read tools, the rest of the safe slice**: `zone/compute list`, `job watch`,
       `events subscribe`, a results-archive summary. Same shape as `experiment_status` — one
       module per vxAPI service under `crates/vxmcp/src/tools/`, one `#[tool]` method per RPC
