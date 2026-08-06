@@ -15,21 +15,33 @@ Phase 3 (`docs/TASKS.md`) — frontend/tooling investment, not gate-blocking. Ma
       (`79f6be9a89c6e47e584750a1efe781497ca8d377`) rather than a branch — `vxmcp` isn't a
       member of `vxedge`'s own Cargo workspace, so this is the correct mechanism, not a
       workaround. Confirmed live: `cargo build`/`clippy`/`test`/`cargo deny check` all resolve
-      and pass clean against the private repo. **CI needs `VXEDGE_CROSS_REPO_TOKEN` added to
-      this repo's own secrets** (same pattern `vxperiments`' CI already uses,
-      `docs/TASKS.md` #18) — not yet done, a human/admin action; until then both CI jobs'
-      private-repo fetch will fail.
-      Found and fixed a second, structural bug 2026-08-06 while diagnosing the first CI run's
-      failure: the `deny` job's `git config --global url.insteadOf` step (copied from the
-      `rust` job) has no effect inside `EmbarkStudios/cargo-deny-action@v2` — that action runs
-      in its own Docker container (`action.yml`: `runs.using: docker`), which doesn't inherit
-      the runner's global `~/.gitconfig`. Confirmed by reading the action's own
-      `entrypoint.sh` (not assumed from its input docs): it writes a dedicated `credentials`
-      input verbatim into `$HOME/.git-credentials` inside the container. `ci.yml`'s `deny` job
-      now passes `credentials: "https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com"`
-      instead of the ineffective git-config step. The `rust` job's own git-config approach was
-      already correct (confirmed from its failure log: the URL rewrite took effect, just with
-      an empty token) and is unchanged.
+      and pass clean against the private repo. **`VXEDGE_CROSS_REPO_TOKEN` added to this
+      repo's own secrets 2026-08-06** (same pattern `vxperiments`' CI already uses,
+      `docs/TASKS.md` #18) — a human/admin action, done via `gh secret set` against the
+      already-issued `vxperiments` PAT.
+      CI needed three real fixes past that, found and fixed 2026-08-06 by reading each failing
+      job's actual log rather than assuming the secret alone would be enough:
+      1. The `deny` job's `git config --global url.insteadOf` step (copied from the `rust`
+         job) has no effect inside `EmbarkStudios/cargo-deny-action@v2` — that action runs in
+         its own Docker container (`action.yml`: `runs.using: docker`), which doesn't inherit
+         the runner's global `~/.gitconfig`. Switched to the action's own dedicated
+         `credentials` input.
+      2. That `credentials` input's format matters and isn't obvious from `entrypoint.sh`
+         alone (which just echoes it verbatim to `$HOME/.git-credentials`) — the action's
+         README spells out the real requirement: a `user:pass` pair. A bare token with no
+         username (`https://TOKEN@github.com`) writes to the file but git's credential-store
+         lookup still fails to match it; confirmed live (secret substitution worked, auth
+         still failed) before finding the README's example and switching to
+         `https://x-access-token:${{ secrets... }}@github.com`.
+      3. The `rust` job's own git-config approach was already correct (confirmed from its
+         failure log: the URL rewrite took effect) — but a second, unrelated failure surfaced
+         once auth passed: `vxedge-api`'s `build.rs` needs `protoc` to regenerate the tonic
+         bindings, same as it does when `vxedge` builds itself in-tree, and `ubuntu-latest`
+         doesn't ship it. Added the identical "Install protoc" step
+         `vxedge/.github/workflows/ci.yml` already carries, rather than inventing a new
+         approach.
+      All three landed in one commit; awaiting the next CI run to confirm both jobs pass clean
+      end to end.
 - [x] **`experiment_status` — first tool, proves the wrapper pattern end to end.** A direct 1:1
       call to `ExperimentService.Status`, the same RPC `vxedge experiment status` calls.
       Reuses `vxedge-cli`'s own Unix-socket connection pattern

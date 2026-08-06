@@ -18,6 +18,11 @@ jobs:
       - name: Configure git for the private vxedge-api dependency
         run: |
           git config --global url."https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      # vxedge-api's build.rs regenerates the tonic bindings from proto/ at compile time even
+      # when consumed as a git dependency (same as compiling it in-tree) — needs protoc.
+      # Matches vxedge/.github/workflows/ci.yml's own "Install protoc" step exactly.
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -42,9 +47,15 @@ jobs:
       # comparing the two jobs' failure logs (the `rust` job's URL rewrite took effect, this
       # job's did not). The action ships its own `credentials` input instead: its
       # `entrypoint.sh` writes this value verbatim as one line into $HOME/.git-credentials
-      # inside the container and enables `credential.helper store` (verified by reading
-      # entrypoint.sh directly, not assumed from the input's one-line description).
+      # inside the container and enables `credential.helper store`. The action's own README
+      # (not just entrypoint.sh) spells out the required shape: a real `user:pass` pair, not a
+      # bare token — a token-only value (no colon) writes to the file but git's
+      # credential-store lookup still fails to match it (confirmed live: first attempt with
+      # `https://TOKEN@github.com` still failed with "failed to acquire username/password from
+      # local configuration" even though the secret substitution itself worked). GitHub
+      # accepts any non-empty username alongside a PAT as the password, so the literal
+      # placeholder `x-access-token` works here.
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          credentials: "https://${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com"
+          credentials: "https://x-access-token:${{ secrets.VXEDGE_CROSS_REPO_TOKEN }}@github.com"
