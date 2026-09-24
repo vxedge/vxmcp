@@ -44,7 +44,7 @@ Connecting to `vxedged` reuses the exact same Unix-socket dance `vxedge-cli` alr
 
 ## MCP spec target: 2026-07-28, on `rmcp` >=3.1.1
 
-Decided 2026-08-06 (`docs/TASKS.md`, full account there — checked `rmcp`'s own release
+Decided 2026-08-06 (`docs/ROADMAP.md`, full account there — checked `rmcp`'s own release
 history before committing, not assumed). Stateless request-response, no `initialize`/
 `initialized` handshake — `ServerHandler::get_info()` sets
 `ProtocolVersion::V_2026_07_28` explicitly. **Multi Round-Trip Requests** are the mechanism
@@ -95,10 +95,6 @@ accident:
 - `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check`
 - `cargo deny check` (advisories/licenses/sources) — the `vxedge-api` git dependency needs an
   `allow-git` entry in `deny.toml`; don't drop it when bumping the pinned rev.
-- CI needs read access to the private `vxedge` repo for the git dependency to resolve — same
-  `VXEDGE_CROSS_REPO_TOKEN` pattern `vxperiments`' own CI already uses
-  (`docs/TASKS.md` #18), added to *this* repo's own secrets separately (a human/admin action,
-  not scriptable — don't assume it's already there).
 - Smoke test: `cargo run -p vxmcp` against a running `vxedged --listen unix:///tmp/vxedge.sock`;
   `npx @modelcontextprotocol/inspector cargo run -p vxmcp` for interactive tool inspection.
 

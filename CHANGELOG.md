@@ -7,6 +7,10 @@ All notable changes to this repo are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+
+- Open-source release preparation: `LICENSE` (Apache-2.0), `NOTICE`, rewritten `README.md`. Crate `license` metadata is now `Apache-2.0` (was `MIT OR Apache-2.0`).
+
+### Added
 - Repo scaffolding: workspace `Cargo.toml`, `crates/vxmcp`, CI (build/test/clippy/fmt/deny),
   `AGENTS.md`/`CLAUDE.md`/`TASKS.md` (2026-08-06).
 - `experiment_status` — first tool, read-only, proves the wrapper pattern end to end: a direct

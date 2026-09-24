@@ -1,13 +1,13 @@
 # TASKS.md — vxedge/vxmcp
 
-Phase 3 (`docs/TASKS.md`) — frontend/tooling investment, not gate-blocking. Master spec:
+Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. Master spec:
 `../docs/ARCHITECTURE.md` §5.1 (frontends, `vxmcp`'s own design paragraph).
 
 ## Phase 3
 
 - [x] **Repo scaffolded, 2026-08-06**: workspace `Cargo.toml`, `crates/vxmcp`, CI
       (build/test/clippy/fmt/`cargo deny`), `AGENTS.md`/`CLAUDE.md`/`README.md`/`CHANGELOG.md`.
-      Language decision (`docs/TASKS.md`, full account there): Rust on `rmcp` >=3.1.1 — checked
+      Language decision (`docs/ROADMAP.md`, full account there): Rust on `rmcp` >=3.1.1 — checked
       the SDK's own release history before committing rather than trusting a same-week
       "beta/Tier-2" snapshot; `rmcp` reached spec-2026-07-28 Tier-1 conformance 2026-07-31 and
       shipped the exact MRTR/cache-hint features this design needs on 2026-08-05.
@@ -17,7 +17,7 @@ Phase 3 (`docs/TASKS.md`) — frontend/tooling investment, not gate-blocking. Ma
       workaround. Confirmed live: `cargo build`/`clippy`/`test`/`cargo deny check` all resolve
       and pass clean against the private repo. **`VXEDGE_CROSS_REPO_TOKEN` added to this
       repo's own secrets 2026-08-06** (same pattern `vxperiments`' CI already uses,
-      `docs/TASKS.md` #18) — a human/admin action, done via `gh secret set` against the
+      `docs/ROADMAP.md` #18) — a human/admin action, done via `gh secret set` against the
       already-issued `vxperiments` PAT.
       CI needed three real fixes past that, found and fixed 2026-08-06 by reading each failing
       job's actual log rather than assuming the secret alone would be enough:
