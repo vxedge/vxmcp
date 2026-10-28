@@ -1,7 +1,10 @@
 //! `svc_status` — a direct 1:1 call to `SvcService.Status`. No CLI verb calls this RPC yet
 //! (`vxedge ota`/`telemetry` only wrap `Up`/`Down`), but `vxedged` serves it. Only
-//! `service_type` is sent: the daemon reads that field alone and validates it itself, so the
-//! accepted values aren't duplicated here as a schema enum that could drift from it.
+//! `service_type` is sent: the daemon reads that field alone. The accepted values aren't
+//! duplicated here as a schema enum that could drift from the daemon's own list — but note the
+//! daemon only rejects an *empty* value today; an unknown one (`bogus`) reports as
+//! `bogus service not running` rather than an error (found in the live smoke test,
+//! 2026-10-28). The fix for that belongs in `vxedged`, not in a second list here.
 
 use rmcp::model::{CallToolResult, ContentBlock};
 use vxedge_api::v1::svc_service_client::SvcServiceClient;
@@ -9,8 +12,8 @@ use vxedge_api::v1::{ResourceStatus, SvcStatusRequest};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct SvcStatusArgs {
-    /// Which experiment service to report on — currently `ota` or `telemetry`. `vxedged`
-    /// rejects anything else with an error naming the accepted values.
+    /// Which experiment service to report on — currently `ota` or `telemetry`. Any other
+    /// value is not rejected: it reports as "not running", so check the spelling.
     pub service_type: String,
 }
 
