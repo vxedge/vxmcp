@@ -42,6 +42,13 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
          approach.
       All three landed in one commit; awaiting the next CI run to confirm both jobs pass clean
       end to end.
+      **Follow-up, 2026-10-28:** the only CI run still on record (2026-09-24, on the public-
+      release commit, which also dropped the token/credentials steps from `ci.yml`) failed —
+      the `rust` job couldn't fetch the pinned `vxedge-api` rev (`failed to authenticate`), and
+      this repo has no secrets set any more. `vxedge` is public now and the pinned rev is on
+      its `main`; an anonymous `cargo fetch --locked` (clean `CARGO_HOME`, no git credentials,
+      no global gitconfig) resolves it cleanly, so no token is needed. The next CI run confirms
+      it end to end.
 - [x] **`experiment_status` — first tool, proves the wrapper pattern end to end.** A direct 1:1
       call to `ExperimentService.Status`, the same RPC `vxedge experiment status` calls.
       Reuses `vxedge-cli`'s own Unix-socket connection pattern
