@@ -166,6 +166,19 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         to the daemon — the bus keeps no history, so only events emitted during the call
         come back. Collection is generic over the stream, so the terminal / timeout / cap /
         early-end paths are unit-tested without a daemon.
+        **Live smoke test, 2026-10-29**, Linux in Docker, modern 2026-07-28 requests. The
+        daemon was the `vxedged` + `vxedge-cli` build from `vxedge` PR #21's branch (current
+        `main` + the `svc_status` fix, already built in another session's volume and mounted
+        read-only — the Docker VM's disk was too full to rebuild at the pinned rev), so it is
+        newer than this repo's pinned `vxedge-api`; Job and Event messages are unchanged
+        between the two. `events_subscribe` (6s) caught all three live `job.state` events —
+        `pending` → `running` → `failed` — for a real job started meanwhile by
+        `vxedge ota up` in `exp-003-ws` (fails cleanly: no `vxota` binary in the container).
+        `job_watch` on that job returned `[ 30%] svc.up starting ota service` plus the
+        final `failed` snapshot and its error, matching the CLI's own output line for
+        line; `job_get` returned the same snapshot. Unknown id → `vxedged`'s `NotFound`; a
+        `kinds` filter matching nothing → `no events in 2s`. Not exercised live: the
+        timeout-while-running path (that job failed instantly) — unit-tested only.
   - [ ] **Results-archive summary — no RPC behind it.** No vxAPI service exposes the results
         archive, so a tool here would break this repo's one-tool-per-RPC hard rule. Needs a
         vxAPI RPC in `vxedge` first, or drop it from this list.
