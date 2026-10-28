@@ -1,6 +1,6 @@
 # Human confirmation for mutating tools (TASKS.md #3)
 
-Status: draft for review, 2026-10-29. Supersedes the open-ended wording of `TASKS.md` #3.
+Status: reviewed, awaiting owner approval, 2026-10-29. Supersedes the open-ended wording of `TASKS.md` #3.
 
 ## Why
 
@@ -26,6 +26,12 @@ human in front of each of those moments. It must not grow into a policy engine.
      one-tool-per-RPC hard rule), and vxAPI has no archive status anyway. An agent that wants
      context calls the read tools first.
    - The retry is trusted through a **single-use, in-memory ticket** bound to the exact call.
+5. **The first guarded tool is `svc_down`, not `experiment_down`** (decided after review; see
+   "Known daemon gap" below).
+6. **"Done" means a hand-driven MRTR exchange passes.** The first step of the work checks
+   whether the owner's everyday MCP client can do 2026-07-28 MRTR form elicitation. If it
+   can't, the tool still ships fail-closed and the owner decides then whether a second
+   mechanism is worth adding. No fallback is built up front.
 
 ## Accepted limit
 
@@ -43,8 +49,9 @@ it.
    modern per-request `_meta` and legacy sessions). It needs form-mode elicitation. If missing,
    return `McpError::missing_required_client_capability(<caps with elicitation>)`, so the
    agent sees a precise reason.
-2. Resolve the target the same way the RPC call will (e.g. canonicalize the workspace path,
-   exactly as `tools::experiment` does today).
+2. Resolve the target the same way the RPC call will. For `svc_down` that is just the
+   `service_type` string. For later tools that take a workspace, canonicalize the path exactly
+   as `tools::experiment` does today.
 3. Create a ticket: a random, unguessable id → `{ tool name, resolved arguments, expires_at }`,
    stored in a map held by `VxmcpServer`. TTL **5 minutes**.
 4. Return `InputRequiredResult` with one form-mode `elicitation/create` request (key
@@ -70,23 +77,37 @@ used-ticket set.)*
 ## Confirmation text
 
 One fixed template per tool, filled with the resolved target. Plain, specific, no fetched
-data. For example:
+data, and it must describe **what the RPC actually does**, checked against `vxedged`'s
+implementation, not the RPC's name. For `svc_down`:
 
-> Tear down experiment at `/…/vxperiments/experiments/exp-003-ws` (stops its gateway, zones,
-> compute and services). This affects anyone using this host's testbed. Confirm?
+> Stop the `ota` service on this host, whichever experiment started it. This affects anyone
+> using this host's testbed. Confirm?
 
-The "affects anyone using this host" line is a fixed reminder, not a check. It reflects the
-owner's shared-environment concern.
+(`SvcService.Down` reads only `service_type` and stops that service on the host via the
+daemon's runtime dir. It does not look at any workspace.) The "affects anyone using this host"
+line is a fixed reminder, not a check. It reflects the owner's shared-environment concern.
+
+## Known daemon gap: `experiment_down` waits
+
+Found in review against `vxedged` at the pinned rev (`crates/vxedged/src/experiment.rs`,
+`down()`): `ExperimentService.Down` stops the named workspace's **services**, but its zones
+stage lists and stops **every zone of whichever experiment is active on the host**
+(`stage_zones` → `ZoneService.List` with no filter), and its gateway stage brings down the
+host's one gateway. A confirmation naming one workspace could therefore tear down someone
+else's active experiment. `experiment_down` is not built until `vxedged` makes Down act only
+on the named workspace, or refuse when it isn't the active one. That's a `vxedge` change plus a
+pin bump, tracked in `TASKS.md`.
 
 ## Scope of the first PR
 
 - The guard as a small reusable piece (e.g. `crate::confirm`) that any mutating tool calls,
   so each tool adds only its template and its RPC call.
-- **One** tool built on it: `experiment_down` (`ExperimentService.Down`, workspace path
-  argument like `experiment_status`, all stages). It's the most destructive call and the
-  clearest test of the owner's fears.
-- Update `AGENTS.md` (the guard now exists and every mutating tool must use it) and `TASKS.md`
-  #3.
+- **One** tool built on it: `svc_down` (`SvcService.Down`, a single `service_type` argument
+  like `svc_status`). Its effect is exactly what its confirmation says, and it can be tested
+  live safely.
+- Update `AGENTS.md` (the guard now exists, every mutating tool must use it, and confirmation
+  text must match the daemon's real behaviour) and `TASKS.md` (#3 progress, plus the
+  `experiment_down` daemon gap above).
 - Each further mutating tool is its own small PR afterwards.
 
 ## Testing
@@ -94,10 +115,13 @@ owner's shared-environment concern.
 - Unit tests for the guard without a daemon: no-capability → refused; round 1 → ticket +
   elicitation; accept → runs; decline/cancel → not run; reused ticket, expired ticket, ticket
   from a different tool or different arguments, missing/forged `requestState` → refused.
-- Live smoke test in Docker like PR #2/#3: a hand-driven MRTR exchange over stdio
-  (round 1, then retry with `accept`, then a retry reusing the same ticket), plus a client
-  request without elicitation capability. The MCP inspector can't be used: it doesn't speak
-  2026-07-28.
+- **First:** check whether the owner's everyday MCP client (presumably Claude Code) supports
+  2026-07-28 MRTR form elicitation. Record the answer in `TASKS.md`. It doesn't block the PR.
+- Live smoke test in Docker like PR #2/#3: a hand-driven MRTR exchange over stdio for
+  `svc_down` with `service_type: ota` (round 1, then retry with `accept`, then a retry reusing
+  the same ticket, then `decline`), plus a request without elicitation capability. Stopping a
+  service that isn't running is harmless in a throwaway container. The MCP inspector can't be
+  used: it doesn't speak 2026-07-28.
 
 ## Non-goals
 
