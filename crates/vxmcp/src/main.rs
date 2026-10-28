@@ -4,8 +4,9 @@
 //!
 //! Targets MCP spec 2026-07-28 on `rmcp` (the official Rust SDK): stateless request-response,
 //! `ServerHandler::get_info()` advertises `ProtocolVersion::V_2026_07_28` explicitly. Read
-//! tools only for now (`experiment_status`); mutating tools (`up`/`down`/`traffic up`) wait on
-//! the MRTR confirmation flow being built and reviewed (AGENTS.md).
+//! tools only for now (`experiment_status`, `gateway_status`, `zone_list`, `compute_list`,
+//! `svc_status`, `job_get`); mutating tools (`up`/`down`/`traffic up`) wait on the MRTR
+//! confirmation flow being built and reviewed (AGENTS.md).
 
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
@@ -18,6 +19,8 @@ use rmcp::{
 mod tools;
 
 use tools::experiment::ExperimentStatusArgs;
+use tools::job::JobGetArgs;
+use tools::svc::SvcStatusArgs;
 
 /// Where to reach `vxedged` — same default and `unix://`-only contract `vxedge-cli` uses
 /// (`vxedge/crates/vxedge-cli/src/main.rs`'s own `connect()`, copied here rather than shared,
@@ -82,6 +85,63 @@ impl VxmcpServer {
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))
     }
+
+    #[tool(
+        description = "Get the gateway's observed status (the same status `vxedge status` \
+                        reports) — a top-level status plus per-slice state, link impairments, \
+                        ingress filters and tunnels actually observed on the kernel."
+    )]
+    async fn gateway_status(&self) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::gateway::status(self.channel.clone())
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
+
+    #[tool(
+        description = "List the zones the active experiment declares, with each zone's \
+                        observed state (the same list `vxedge zone list` reports)."
+    )]
+    async fn zone_list(&self) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::zone::list(self.channel.clone())
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
+
+    #[tool(
+        description = "List the compute nodes the active experiment declares, with each \
+                        node's observed state (the same list `vxedge compute list` reports)."
+    )]
+    async fn compute_list(&self) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::compute::list(self.channel.clone())
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
+
+    #[tool(
+        description = "Get whether an experiment service (`ota` or `telemetry`) is running \
+                        on this host."
+    )]
+    async fn svc_status(
+        &self,
+        Parameters(args): Parameters<SvcStatusArgs>,
+    ) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::svc::status(self.channel.clone(), args)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
+
+    #[tool(
+        description = "Get one snapshot of a job by id — its kind, state, progress, latest \
+                        message and any error. Every mutating vxAPI call returns a job id."
+    )]
+    async fn job_get(
+        &self,
+        Parameters(args): Parameters<JobGetArgs>,
+    ) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::job::get(self.channel.clone(), args)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
 }
 
 #[tool_handler]
@@ -92,8 +152,9 @@ impl ServerHandler for VxmcpServer {
             .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_instructions(
                 "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Read tools only for \
-                 now: experiment_status. Point VXEDGE_ENDPOINT at a running vxedged \
-                 (unix:///path.sock) before calling any tool."
+                 now: experiment_status, gateway_status, zone_list, compute_list, svc_status, \
+                 job_get. Point VXEDGE_ENDPOINT at a running vxedged (unix:///path.sock) \
+                 before calling any tool."
                     .to_string(),
             )
     }

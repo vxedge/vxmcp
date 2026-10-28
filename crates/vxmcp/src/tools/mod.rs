@@ -2,4 +2,9 @@
 //! `#[tool_router] impl` so a tool's actual RPC-calling logic is unit-testable without needing
 //! a live `rmcp` server around it (`main.rs`'s tool methods stay a thin dispatch to these).
 
+pub mod compute;
 pub mod experiment;
+pub mod gateway;
+pub mod job;
+pub mod svc;
+pub mod zone;
