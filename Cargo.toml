@@ -27,7 +27,10 @@ vxedge-api = { git = "https://github.com/vxedge/vxedge", rev = "79f6be9a89c6e47e
 # `server`/`macros` are already on by default per the crate's own docs.
 rmcp = { version = "3.1.1", features = ["transport-io"] }
 tonic = "0.14"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std", "time"] }
+# Already in the tree via tonic; declared directly for `StreamExt::next` over the two
+# server-streaming RPCs (`JobService.Watch`, `EventService.Subscribe`).
+tokio-stream = "0.1"
 tower = "0.5"
 hyper-util = "0.1"
 schemars = "1"
