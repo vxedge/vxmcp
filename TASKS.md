@@ -131,8 +131,25 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         `vxedge-cli`'s own `state_name()` — the one place the CLI already prints names.
         `svc_status` has no CLI verb yet (the CLI only wraps `SvcService.Up`/`Down`) but the
         daemon serves it; it sends `service_type` only, since that's the one field `vxedged`
-        reads, and leaves value validation to the daemon rather than a schema enum that could
-        drift from it.
+        reads, and keeps the accepted values out of a schema enum that could drift from the
+        daemon's own list. Caveat found live: `vxedged` only rejects an *empty*
+        `service_type` — an unknown one (`bogus`) answers `svc-bogus [state=1] bogus service
+        not running` instead of an error. The tool's argument doc says so; the real fix is in
+        `vxedged` (`SvcService.Status`), not a second list here.
+  - [x] **Live smoke test, 2026-10-28** — same method as #1, but on Linux in Docker
+        (`rust:1.96.1-bookworm`, since `vxedged` uses netlink and doesn't build on macOS):
+        `vxedged` + `vxedge-cli` built at the pinned rev, `vxmcp` at this branch, `vxedged`
+        unprivileged on a scratch Unix socket, `vxperiments/experiments/exp-001-ws` mounted
+        read-only. Every call sent as a modern 2026-07-28 request (no `initialize`,
+        protocol version in `_meta`), each compared against the CLI's own answer:
+        `gateway_status` → `vxgateway [state=1] no gateway provisioned` (matches
+        `vxedge status`); `zone_list`/`compute_list` → JSON-RPC error carrying `vxedged`'s
+        own `FailedPrecondition` "no active experiment … bring one up first" (identical to
+        `vxedge zone/compute list`'s error — nothing is up, and bringing one up is a
+        mutating call, so the non-empty and empty-list paths stay covered by unit tests
+        only); `svc_status` `ota`/`telemetry` → `[state=1] … service not running`;
+        `job_get` on an unknown id → JSON-RPC error with `vxedged`'s own `NotFound` "unknown job" message;
+        `experiment_status` still matches `vxedge experiment status`.
   - **Not wired, deliberately: `vehicle_status`.** `VehicleService.Status` exists in the
     proto, but `vxedged` never registers a `VehicleService` (`vxedged/src/main.rs`'s
     `add_service` list, pinned rev) — a tool would only ever return `Unimplemented`. Wire it
