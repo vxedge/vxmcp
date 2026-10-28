@@ -5,7 +5,7 @@
 //! Targets MCP spec 2026-07-28 on `rmcp` (the official Rust SDK): stateless request-response,
 //! `ServerHandler::get_info()` advertises `ProtocolVersion::V_2026_07_28` explicitly. Read
 //! tools only for now (`experiment_status`, `gateway_status`, `zone_list`, `compute_list`,
-//! `svc_status`, `job_get`); mutating tools (`up`/`down`/`traffic up`) wait on the MRTR
+//! `svc_status`, `job_get`, `job_watch`, `events_subscribe`); mutating tools (`up`/`down`/`traffic up`) wait on the MRTR
 //! confirmation flow being built and reviewed (AGENTS.md).
 
 use rmcp::{
@@ -18,8 +18,9 @@ use rmcp::{
 
 mod tools;
 
+use tools::events::EventsSubscribeArgs;
 use tools::experiment::ExperimentStatusArgs;
-use tools::job::JobGetArgs;
+use tools::job::{JobGetArgs, JobWatchArgs};
 use tools::svc::SvcStatusArgs;
 
 /// Where to reach `vxedged` — same default and `unix://`-only contract `vxedge-cli` uses
@@ -142,6 +143,34 @@ impl VxmcpServer {
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))
     }
+
+    #[tool(
+        description = "Follow a job by id until it succeeds, fails or is cancelled, or until \
+                        the timeout passes (default 60s, max 300s). Returns each progress step \
+                        seen and the final state; on a timeout, call again to keep watching."
+    )]
+    async fn job_watch(
+        &self,
+        Parameters(args): Parameters<JobWatchArgs>,
+    ) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::job::watch(self.channel.clone(), args)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
+
+    #[tool(
+        description = "Collect daemon events (state transitions, audit, reconcile) emitted \
+                        during a short window (default 10s, max 60s), optionally filtered by \
+                        kind. Live only: events from before the call are not returned."
+    )]
+    async fn events_subscribe(
+        &self,
+        Parameters(args): Parameters<EventsSubscribeArgs>,
+    ) -> Result<rmcp::model::CallToolResult, McpError> {
+        tools::events::subscribe(self.channel.clone(), args)
+            .await
+            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    }
 }
 
 #[tool_handler]
@@ -153,7 +182,7 @@ impl ServerHandler for VxmcpServer {
             .with_instructions(
                 "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Read tools only for \
                  now: experiment_status, gateway_status, zone_list, compute_list, svc_status, \
-                 job_get. Point VXEDGE_ENDPOINT at a running vxedged (unix:///path.sock) \
+                 job_get, job_watch, events_subscribe. Point VXEDGE_ENDPOINT at a running vxedged (unix:///path.sock) \
                  before calling any tool."
                     .to_string(),
             )

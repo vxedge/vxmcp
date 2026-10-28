@@ -3,6 +3,7 @@
 //! a live `rmcp` server around it (`main.rs`'s tool methods stay a thin dispatch to these).
 
 pub mod compute;
+pub mod events;
 pub mod experiment;
 pub mod gateway;
 pub mod job;

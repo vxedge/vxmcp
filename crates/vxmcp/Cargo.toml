@@ -17,6 +17,7 @@ vxedge-api = { workspace = true }
 rmcp = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = { workspace = true }
 tower = { workspace = true }
 hyper-util = { workspace = true }
 schemars = { workspace = true }
