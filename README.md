@@ -25,12 +25,12 @@ Depends on `vxedge-api` from [`vxedge`](https://github.com/vxedge/vxedge) via a 
 ## Running
 
 ```bash
-# against a real vxedged, local Unix socket
+# against a real vxedged, local Unix socket (VXEDGE_ENDPOINT defaults to unix:///run/vxedge.sock)
 vxedged --listen unix:///tmp/vxedge.sock &
-cargo run -p vxmcp -- --endpoint unix:///tmp/vxedge.sock
+VXEDGE_ENDPOINT=unix:///tmp/vxedge.sock cargo run -p vxmcp
 
 # interactive tool inspection
-npx @modelcontextprotocol/inspector cargo run -p vxmcp -- --endpoint unix:///tmp/vxedge.sock
+npx @modelcontextprotocol/inspector -e VXEDGE_ENDPOINT=unix:///tmp/vxedge.sock cargo run -p vxmcp
 ```
 
 ## Design
