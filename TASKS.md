@@ -112,7 +112,7 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 
 | # | Task | State |
 |---|---|---|
-| 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | open |
+| 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | in progress — unary tools done; streaming + archive open |
 | 3 | MRTR confirmation flow for mutating tools | open |
 | 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
 | 5 | Real deployment (systemd unit / process supervision) | open |
@@ -121,6 +121,30 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
       `events subscribe`, a results-archive summary. Same shape as `experiment_status` — one
       module per vxAPI service under `crates/vxmcp/src/tools/`, one `#[tool]` method per RPC
       dispatching to it. No design question, no dependency on #3.
+  - [x] **Unary read tools, 2026-10-28**: `gateway_status` (`GatewayService.Status`),
+        `zone_list` (`ZoneService.List`), `compute_list` (`ComputeService.List`), `svc_status`
+        (`SvcService.Status`), `job_get` (`JobService.Get`). Checked against the pinned
+        `vxedge-api` rev's protos and `vxedged`'s own `add_service` list before wiring
+        each one, not assumed from the proto alone. `job_get` is the non-streaming way to
+        check on a job until `job watch` below is settled. Output keeps `experiment_status`'s
+        `[state=N]` ordinal convention for resource states; job states are named, matching
+        `vxedge-cli`'s own `state_name()` — the one place the CLI already prints names.
+        `svc_status` has no CLI verb yet (the CLI only wraps `SvcService.Up`/`Down`) but the
+        daemon serves it; it sends `service_type` only, since that's the one field `vxedged`
+        reads, and leaves value validation to the daemon rather than a schema enum that could
+        drift from it.
+  - **Not wired, deliberately: `vehicle_status`.** `VehicleService.Status` exists in the
+    proto, but `vxedged` never registers a `VehicleService` (`vxedged/src/main.rs`'s
+    `add_service` list, pinned rev) — a tool would only ever return `Unimplemented`. Wire it
+    when the daemon serves it.
+  - [ ] **`job watch` / `events subscribe` — needs a design decision first.** Both are
+        server-streaming RPCs (`JobService.Watch`, `EventService.Subscribe`); an MCP tool call
+        returns once. Options: collect until terminal state / a timeout and return the
+        batch; stream progress notifications during the call; or drop them and let the agent
+        poll `job_get`. Not chosen here.
+  - [ ] **Results-archive summary — no RPC behind it.** No vxAPI service exposes the results
+        archive, so a tool here would break this repo's one-tool-per-RPC hard rule. Needs a
+        vxAPI RPC in `vxedge` first, or drop it from this list.
 - [ ] **#3 — MRTR confirmation flow for mutating tools** (`up`/`down`/`traffic up`) — the design
       point this repo's own `AGENTS.md` states but hasn't built: return `InputRequiredResult`
       with an `InputRequest::Elicitation` asking the caller to confirm, verify the echoed

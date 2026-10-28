@@ -8,6 +8,9 @@ All notable changes to this repo are documented here. Format follows
 
 ### Added
 
+- Read tools `gateway_status`, `zone_list`, `compute_list`, `svc_status`, `job_get` — each a
+  direct 1:1 call to one vxAPI RPC (`GatewayService.Status`, `ZoneService.List`,
+  `ComputeService.List`, `SvcService.Status`, `JobService.Get`).
 - Open-source release preparation: `LICENSE` (Apache-2.0), `NOTICE`, rewritten `README.md`. Crate `license` metadata is now `Apache-2.0` (was `MIT OR Apache-2.0`).
 - Repo scaffolding: workspace `Cargo.toml`, `crates/vxmcp`, CI (build/test/clippy/fmt/deny),
   `AGENTS.md`/`CLAUDE.md`/`TASKS.md` (2026-08-06).

@@ -9,9 +9,9 @@ vxedge is an open, all-software testbed for mapping 5G network slices onto zonal
 
 ## Status
 
-Scaffolded 2026-08-06. First tool (`experiment_status`, read-only) proves the wrapper pattern
-end to end; the rest of the read-tool surface and the MRTR-gated mutating tools follow — see
-[`TASKS.md`](TASKS.md).
+Scaffolded 2026-08-06. Read-only tools so far: `experiment_status`, `gateway_status`,
+`zone_list`, `compute_list`, `svc_status`, `job_get`. The streaming read tools and the
+MRTR-gated mutating tools follow — see [`TASKS.md`](TASKS.md).
 
 ## Building
 
