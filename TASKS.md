@@ -12,7 +12,10 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
       "beta/Tier-2" snapshot; `rmcp` reached spec-2026-07-28 Tier-1 conformance 2026-07-31 and
       shipped the exact MRTR/cache-hint features this design needs on 2026-08-05.
 - [x] **`vxedge-api` wired as a git dependency**, pinned to a commit
-      (`79f6be9a89c6e47e584750a1efe781497ca8d377`) rather than a branch — `vxmcp` isn't a
+      (`79f6be9a89c6e47e584750a1efe781497ca8d377`; bumped 2026-10-29 to
+      `a78e7ddada05ca4e8b28b63f97301e04e4023c4e` for the `svc_status` fix — the vxAPI proto
+      diff across those 23 commits is one comment, so the RPC surface is unchanged) rather
+      than a branch — `vxmcp` isn't a
       member of `vxedge`'s own Cargo workspace, so this is the correct mechanism, not a
       workaround. Confirmed live: `cargo build`/`clippy`/`test`/`cargo deny check` all resolve
       and pass clean against the private repo. **`VXEDGE_CROSS_REPO_TOKEN` added to this
@@ -132,10 +135,13 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         `svc_status` has no CLI verb yet (the CLI only wraps `SvcService.Up`/`Down`) but the
         daemon serves it; it sends `service_type` only, since that's the one field `vxedged`
         reads, and keeps the accepted values out of a schema enum that could drift from the
-        daemon's own list. Caveat found live: `vxedged` only rejects an *empty*
-        `service_type` — an unknown one (`bogus`) answers `svc-bogus [state=1] bogus service
-        not running` instead of an error. The tool's argument doc says so; the real fix is in
-        `vxedged` (`SvcService.Status`), not a second list here.
+        daemon's own list. Found live (2026-10-28): `vxedged` then only rejected an *empty*
+        `service_type` — an unknown one (`bogus`) answered `svc-bogus [state=1] bogus service
+        not running` instead of an error. **Fixed daemon-side 2026-10-29** (vxedge PR #21,
+        `a78e7dd`): `SvcService` Status/Up/Down now answer an unknown type with
+        `INVALID_ARGUMENT` naming the accepted ones, and this repo's pin was bumped to that
+        commit, with the tool's doc updated to match. A daemon older than `a78e7dd` still
+        shows the old behaviour.
   - [x] **Live smoke test, 2026-10-28** — same method as #1, but on Linux in Docker
         (`rust:1.96.1-bookworm`, since `vxedged` uses netlink and doesn't build on macOS):
         `vxedged` + `vxedge-cli` built at the pinned rev, `vxmcp` at this branch, `vxedged`

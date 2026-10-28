@@ -20,3 +20,8 @@ All notable changes to this repo are documented here. Format follows
 - `experiment_status` — first tool, read-only, proves the wrapper pattern end to end: a direct
   1:1 call to `ExperimentService.Status` over the same Unix-socket connection pattern
   `vxedge-cli` already uses.
+
+### Changed
+
+- `vxedge-api` pin bumped to `vxedge` `a78e7dd`, which makes `vxedged` reject an unknown
+  `service_type`; `svc_status`'s argument doc now says so. No vxAPI surface change.
