@@ -8,6 +8,9 @@ All notable changes to this repo are documented here. Format follows
 
 ### Added
 
+- Streaming read tools `job_watch` (`JobService.Watch`, follows a job until it finishes or a
+  timeout passes) and `events_subscribe` (`EventService.Subscribe`, collects live events for
+  a short window) — each still one RPC, collected and returned as a single result.
 - Read tools `gateway_status`, `zone_list`, `compute_list`, `svc_status`, `job_get` — each a
   direct 1:1 call to one vxAPI RPC (`GatewayService.Status`, `ZoneService.List`,
   `ComputeService.List`, `SvcService.Status`, `JobService.Get`).

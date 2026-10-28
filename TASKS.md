@@ -112,7 +112,7 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 
 | # | Task | State |
 |---|---|---|
-| 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | in progress — unary tools done; streaming + archive open |
+| 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | in progress — read tools done; results-archive summary open (needs a vxAPI RPC) |
 | 3 | MRTR confirmation flow for mutating tools | open |
 | 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
 | 5 | Real deployment (systemd unit / process supervision) | open |
@@ -125,8 +125,8 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         `zone_list` (`ZoneService.List`), `compute_list` (`ComputeService.List`), `svc_status`
         (`SvcService.Status`), `job_get` (`JobService.Get`). Checked against the pinned
         `vxedge-api` rev's protos and `vxedged`'s own `add_service` list before wiring
-        each one, not assumed from the proto alone. `job_get` is the non-streaming way to
-        check on a job until `job watch` below is settled. Output keeps `experiment_status`'s
+        each one, not assumed from the proto alone. `job_get` is the one-snapshot way to
+        check on a job; `job_watch` below follows one. Output keeps `experiment_status`'s
         `[state=N]` ordinal convention for resource states; job states are named, matching
         `vxedge-cli`'s own `state_name()` — the one place the CLI already prints names.
         `svc_status` has no CLI verb yet (the CLI only wraps `SvcService.Up`/`Down`) but the
@@ -154,11 +154,18 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
     proto, but `vxedged` never registers a `VehicleService` (`vxedged/src/main.rs`'s
     `add_service` list, pinned rev) — a tool would only ever return `Unimplemented`. Wire it
     when the daemon serves it.
-  - [ ] **`job watch` / `events subscribe` — needs a design decision first.** Both are
-        server-streaming RPCs (`JobService.Watch`, `EventService.Subscribe`); an MCP tool call
-        returns once. Options: collect until terminal state / a timeout and return the
-        batch; stream progress notifications during the call; or drop them and let the agent
-        poll `job_get`. Not chosen here.
+  - [x] **`job_watch` / `events_subscribe`, 2026-10-29** — the two server-streaming RPCs
+        (`JobService.Watch`, `EventService.Subscribe`). Decided: collect, then return once —
+        an MCP tool call returns a single result, and this works with every client (progress
+        notifications don't render everywhere; poll-only would have left events with no tool).
+        `job_watch` follows the job until a terminal state or a caller-chosen timeout
+        (default 60s, cap 300s), returning the distinct progress steps (deduped the same way
+        `vxedge-cli`'s `watch_job()` does) plus the final snapshot; a timeout says so and
+        leaves re-watching to the agent. `events_subscribe` collects live events for a window
+        (default 10s, cap 60s, stops at 200) with an optional `kinds` filter passed through
+        to the daemon — the bus keeps no history, so only events emitted during the call
+        come back. Collection is generic over the stream, so the terminal / timeout / cap /
+        early-end paths are unit-tested without a daemon.
   - [ ] **Results-archive summary — no RPC behind it.** No vxAPI service exposes the results
         archive, so a tool here would break this repo's one-tool-per-RPC hard rule. Needs a
         vxAPI RPC in `vxedge` first, or drop it from this list.
