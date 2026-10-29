@@ -51,8 +51,8 @@ history before committing, not assumed). Stateless request-response, no `initial
 for a mutating tool that needs its caller to confirm before running: return
 `InputRequiredResult` with an `InputRequest::Elicitation`, verify the echoed `requestState`
 before trusting it (it's caller-controlled input, same trust boundary as any other request
-field), then complete on the retry. See `rmcp`'s own `examples/servers/src/mrtr.rs` for the
-full pattern before building the first mutating tool.
+field), then complete on the retry. That's built as `crate::confirm` — use it, don't
+re-implement it per tool (see "Mutating tools" below).
 
 **The "no `initialize` handshake" claim above is specifically about *modern* clients** —
 confirmed against the spec text itself
@@ -75,17 +75,27 @@ accident:
   test as proof of "no handshake"; verify the handshake-free path directly (one request, no
   `initialize`, protocol version in `_meta`) when spec conformance is the thing being checked.
 
-## Read tools first, mutating tools once MRTR is reviewed
+## Mutating tools: human confirmation first, always
 
-- **Read tools** (`experiment status`, `zone/compute list`, `job watch`, `events subscribe`,
-  a results-archive summary) carry no confirmation question and are useful standalone — build
-  these first. `experiment_status` is the first one, proving the wrapper pattern end to end.
-- **Mutating tools** (`up`/`down`/`traffic up`) carry the same idempotency/observe-before-
-  claiming-success guarantees the RPCs already have, so nothing new is needed at that seam —
-  but they need the MRTR confirmation flow built and reviewed first, so an agent can't chain
-  them unsupervised into a destructive sequence the way a human operator never could either
-  (the CLI's own explicit verbs are the parity bar). Don't wire a mutating RPC to a tool
-  before that flow exists.
+Design: `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md` (owner-approved
+2026-10-29). Read tools carry no question; every **mutating** tool goes through
+`crate::confirm` before its one RPC, so an agent can't chain them unsupervised into a
+destructive sequence (the CLI's own explicit verbs are the parity bar).
+
+- **Every** mutating tool calls `Confirmations::gate` with its own name, its *resolved*
+  arguments and its confirmation text, and runs the RPC only on `Gate::Proceed`. No exceptions
+  for "harmless" ones, and **no argument may skip or pre-answer the question** — only a human
+  confirms.
+- **Fail closed**: no form-elicitation capability → `MISSING_REQUIRED_CLIENT_CAPABILITY`, never
+  a silent run. No unattended/CI mode; if one is ever added it's an operator launch setting,
+  off by default, never reachable through a tool call.
+- **Confirmation text says what `vxedged` actually does**, checked against its implementation,
+  not the RPC's name — `ExperimentService.Down` once tore down whichever experiment was active,
+  not the one named (fixed in vxedge PR #24; `experiment_down` waits on that plus a pin bump).
+  Every text ends with `This affects anyone using this host's testbed. Confirm?`
+- A confirmed tool returns the `Job` immediately; the agent follows it with
+  `job_watch`/`job_get`. One RPC per tool still holds.
+- `svc_down` is the reference implementation.
 
 ## Rules
 

@@ -8,6 +8,11 @@ All notable changes to this repo are documented here. Format follows
 
 ### Added
 
+- Human confirmation for mutating tools (`crate::confirm`): MCP 2026-07-28 multi round-trip
+  form elicitation with a single-use, 5-minute ticket bound to the exact call; fails closed
+  when the client can't ask.
+- `svc_down` (`SvcService.Down`), the first mutating tool, behind that confirmation.
+
 - Streaming read tools `job_watch` (`JobService.Watch`, follows a job until it finishes or a
   timeout passes) and `events_subscribe` (`EventService.Subscribe`, collects live events for
   a short window) — each still one RPC, collected and returned as a single result.
