@@ -14,7 +14,9 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 - [x] **`vxedge-api` wired as a git dependency**, pinned to a commit
       (`79f6be9a89c6e47e584750a1efe781497ca8d377`; bumped 2026-10-29 to
       `a78e7ddada05ca4e8b28b63f97301e04e4023c4e` for the `svc_status` fix — the vxAPI proto
-      diff across those 23 commits is one comment, so the RPC surface is unchanged) rather
+      diff across those 23 commits is one comment, so the RPC surface is unchanged; then to
+      `e3753be06117fcef8b25c59287813782fc8f4654` for the `ExperimentService.Down` fix that
+      `experiment_down` needs — again one proto comment, no surface change) rather
       than a branch — `vxmcp` isn't a
       member of `vxedge`'s own Cargo workspace, so this is the correct mechanism, not a
       workaround. Confirmed live: `cargo build`/`clippy`/`test`/`cargo deny check` all resolve
@@ -116,7 +118,7 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 | # | Task | State |
 |---|---|---|
 | 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | in progress — read tools done; results-archive summary open (needs a vxAPI RPC) |
-| 3 | MRTR confirmation flow for mutating tools | in progress — guard + `svc_down` done; more tools one PR each; `experiment_down` waits on a pin bump to vxedge `e3753be` |
+| 3 | MRTR confirmation flow for mutating tools | in progress — guard, `svc_down`, `experiment_down` done; more tools one PR each |
 | 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
 | 5 | Real deployment (systemd unit / process supervision) | open |
 
@@ -191,10 +193,10 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 - [ ] **#3 — MRTR confirmation flow for mutating tools** (`up`/`down`/`traffic up`). **Guard
       built 2026-10-29** (`crate::confirm`, design in
       `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md`) with `svc_down` as the
-      first tool; each further mutating tool is its own small PR. **`experiment_down` waits**
-      on a pin bump: at the pinned `a78e7dd`, Down tears down whichever experiment is active,
-      not the one named. vxedge PR #24 (merged 2026-10-29 as `e3753be`) makes it refuse
-      instead, so bump the pin to `e3753be` or later first. Original note: the design
+      first tool; each further mutating tool is its own small PR. **`experiment_down` added
+      2026-10-29** after the pin moved to vxedge `e3753be` (PR #24: Down refuses anything but
+      the active experiment; before it, Down tore down whichever experiment was active).
+      Original note: the design
       point this repo's own `AGENTS.md` states but hasn't built: return `InputRequiredResult`
       with an `InputRequest::Elicitation` asking the caller to confirm, verify the echoed
       `requestState` (caller-controlled input) before trusting it, complete on the retry. See
@@ -214,6 +216,17 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         "telemetry")" as a JSON-RPC error (the human is asked before the daemon validates; the
         ticket is spent either way); `job_watch` on the job → `succeeded [100%] ota service
         down`.
+  - [x] **Live smoke test of `experiment_down`, 2026-10-29** — same setup as `svc_down`'s,
+        `vxedged` at the pinned `e3753be`, nothing active. Round 1 asked with the *resolved*
+        path, also for `/ws/experiments/../experiments/exp-001-ws`; accepting a ticket issued
+        for the canonical path, retried with that aliased spelling, ran the real
+        `ExperimentService.Down` (`job-00000000 experiment.down`) — binding is on the resolved
+        path. The job reached the gateway stage and failed there only because the container
+        has no `nft` (with nothing active, Down still tears down the host's gateway — as the
+        question says). Decline → nothing ran; a ticket issued for `exp-003-ws` retried on
+        `exp-001-ws` → `-32602`; a missing workspace, accepted → vxedged's own "cannot read
+        manifest" error. Not exercised live: Down refusing because a *different* experiment is
+        active (needs privileged provisioning) — covered by vxedge PR #24's unit tests.
   - **Client check, 2026-10-29 — Claude Code (from its docs, not tested live).** Per
         `code.claude.com/docs/en/mcp.md` ("MCP client runtimes", "Respond to MCP elicitation
         requests", "MCP tasks …"): its v2 runtime speaks 2026-07-28 and declares
