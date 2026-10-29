@@ -1357,7 +1357,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 [[package]]
 name = "vxedge-api"
 version = "0.2.0"
-source = "git+https://github.com/vxedge/vxedge?rev=a78e7ddada05ca4e8b28b63f97301e04e4023c4e#a78e7ddada05ca4e8b28b63f97301e04e4023c4e"
+source = "git+https://github.com/vxedge/vxedge?rev=e3753be06117fcef8b25c59287813782fc8f4654#e3753be06117fcef8b25c59287813782fc8f4654"
 dependencies = [
  "prost",
  "tonic",

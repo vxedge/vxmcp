@@ -6,7 +6,7 @@
 //! `ServerHandler::get_info()` advertises `ProtocolVersion::V_2026_07_28` explicitly. Read
 //! tools: `experiment_status`, `gateway_status`, `zone_list`, `compute_list`, `svc_status`,
 //! `job_get`, `job_watch`, `events_subscribe`. Mutating tools go through `crate::confirm`'s
-//! human confirmation first (AGENTS.md); `svc_down` is the first.
+//! human confirmation first (AGENTS.md): `svc_down`, `experiment_down`.
 
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
@@ -26,7 +26,7 @@ mod tools;
 
 use confirm::{Confirmations, Gate};
 use tools::events::EventsSubscribeArgs;
-use tools::experiment::ExperimentStatusArgs;
+use tools::experiment::{ExperimentDownArgs, ExperimentStatusArgs};
 use tools::job::{JobGetArgs, JobWatchArgs};
 use tools::svc::{SvcDownArgs, SvcStatusArgs};
 
@@ -212,6 +212,41 @@ impl VxmcpServer {
                 .map_err(|e| McpError::internal_error(e.to_string(), None)),
         }
     }
+
+    #[tool(
+        description = "Tear down the experiment at the given workspace path: stops the services \
+                        it declares, its zones and this host's gateway. Only the experiment \
+                        active on this host can be torn down. Asks the human user to confirm \
+                        first; fails if the client can't ask. Returns the job; follow it with \
+                        job_watch.",
+        annotations(destructive_hint = true)
+    )]
+    async fn experiment_down(
+        &self,
+        Parameters(args): Parameters<ExperimentDownArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        // Resolved once: the confirmation, the ticket and the RPC all use this exact string.
+        let workspace = tools::experiment::resolve_workspace(&args.workspace);
+        let gate = self.confirmations.gate(
+            ctx.client_capabilities().as_ref(),
+            "experiment_down",
+            &serde_json::json!({ "workspace": workspace }),
+            &tools::experiment::down_confirmation(&workspace),
+            state,
+            responses,
+        )?;
+        match gate {
+            Gate::Ask(r) => Ok(r.into()),
+            Gate::NotConfirmed(r) => Ok(r.into()),
+            Gate::Proceed => tools::experiment::down(self.channel.clone(), workspace)
+                .await
+                .map(Into::into)
+                .map_err(|e| McpError::internal_error(e.to_string(), None)),
+        }
+    }
 }
 
 #[tool_handler]
@@ -221,11 +256,12 @@ impl ServerHandler for VxmcpServer {
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_instructions(
-                "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Read tools only for \
-                 now: experiment_status, gateway_status, zone_list, compute_list, svc_status, \
-                 job_get, job_watch, events_subscribe; and svc_down (mutating, asks the user to \
-                 confirm). Point VXEDGE_ENDPOINT at a running vxedged (unix:///path.sock) \
-                 before calling any tool."
+                "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Read tools: \
+                 experiment_status, gateway_status, zone_list, compute_list, svc_status, \
+                 job_get, job_watch, events_subscribe. Mutating tools (each asks the user to \
+                 confirm, and returns a job to follow with job_watch): svc_down, \
+                 experiment_down. Point VXEDGE_ENDPOINT at a running vxedged \
+                 (unix:///path.sock) before calling any tool."
                     .to_string(),
             )
     }
