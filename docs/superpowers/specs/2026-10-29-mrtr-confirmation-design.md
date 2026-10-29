@@ -1,6 +1,6 @@
 # Human confirmation for mutating tools (TASKS.md #3)
 
-Status: reviewed, awaiting owner approval, 2026-10-29. Supersedes the open-ended wording of `TASKS.md` #3.
+Status: approved by the owner, 2026-10-29. Supersedes the open-ended wording of `TASKS.md` #3.
 
 ## Why
 
