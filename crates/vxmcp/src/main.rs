@@ -278,8 +278,19 @@ impl ServerHandler for VxmcpServer {
     }
 }
 
+/// `vxmcp --version` (or `-V`) answers without a daemon, so a release archive can be checked
+/// on its own; any other arguments are ignored, as before.
+fn version_requested(mut args: impl Iterator<Item = String>) -> bool {
+    args.nth(1).is_some_and(|a| a == "--version" || a == "-V")
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if version_requested(std::env::args()) {
+        println!("vxmcp {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr) // stdout is the MCP transport's own wire, same
         // discipline vxagents' binaries already follow for their own JSON stdout contract
@@ -301,4 +312,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     server.waiting().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::version_requested;
+
+    fn args(list: &[&str]) -> impl Iterator<Item = String> {
+        list.iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+
+    #[test]
+    fn version_flag_only_as_first_argument() {
+        assert!(version_requested(args(&["vxmcp", "--version"])));
+        assert!(version_requested(args(&["vxmcp", "-V"])));
+        assert!(!version_requested(args(&["vxmcp"])));
+        assert!(!version_requested(args(&["vxmcp", "serve", "--version"])));
+    }
 }
