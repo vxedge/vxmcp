@@ -116,7 +116,7 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 | # | Task | State |
 |---|---|---|
 | 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | in progress — read tools done; results-archive summary open (needs a vxAPI RPC) |
-| 3 | MRTR confirmation flow for mutating tools | open |
+| 3 | MRTR confirmation flow for mutating tools | in progress — guard + `svc_down` done; more tools one PR each; `experiment_down` waits on vxedge PR #24 |
 | 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
 | 5 | Real deployment (systemd unit / process supervision) | open |
 
@@ -188,7 +188,12 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
   - [ ] **Results-archive summary — no RPC behind it.** No vxAPI service exposes the results
         archive, so a tool here would break this repo's one-tool-per-RPC hard rule. Needs a
         vxAPI RPC in `vxedge` first, or drop it from this list.
-- [ ] **#3 — MRTR confirmation flow for mutating tools** (`up`/`down`/`traffic up`) — the design
+- [ ] **#3 — MRTR confirmation flow for mutating tools** (`up`/`down`/`traffic up`). **Guard
+      built 2026-10-29** (`crate::confirm`, design in
+      `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md`) with `svc_down` as the
+      first tool; each further mutating tool is its own small PR. **`experiment_down` waits**
+      on vxedge PR #24 (Down used to tear down whichever experiment was active, not the one
+      named) plus a pin bump. Original note: the design
       point this repo's own `AGENTS.md` states but hasn't built: return `InputRequiredResult`
       with an `InputRequest::Elicitation` asking the caller to confirm, verify the echoed
       `requestState` (caller-controlled input) before trusting it, complete on the retry. See
