@@ -192,8 +192,9 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
       built 2026-10-29** (`crate::confirm`, design in
       `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md`) with `svc_down` as the
       first tool; each further mutating tool is its own small PR. **`experiment_down` waits**
-      on vxedge PR #24 (Down used to tear down whichever experiment was active, not the one
-      named) plus a pin bump. Original note: the design
+      on vxedge PR #24 merging (at the pinned rev, Down tears down whichever experiment is
+      active, not the one named; the PR, open as of 2026-10-29, makes it refuse instead) plus a
+      pin bump. Original note: the design
       point this repo's own `AGENTS.md` states but hasn't built: return `InputRequiredResult`
       with an `InputRequest::Elicitation` asking the caller to confirm, verify the echoed
       `requestState` (caller-controlled input) before trusting it, complete on the retry. See

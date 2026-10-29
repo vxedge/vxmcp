@@ -90,8 +90,9 @@ destructive sequence (the CLI's own explicit verbs are the parity bar).
   a silent run. No unattended/CI mode; if one is ever added it's an operator launch setting,
   off by default, never reachable through a tool call.
 - **Confirmation text says what `vxedged` actually does**, checked against its implementation,
-  not the RPC's name — `ExperimentService.Down` once tore down whichever experiment was active,
-  not the one named (fixed in vxedge PR #24; `experiment_down` waits on that plus a pin bump).
+  not the RPC's name. Example: at the pinned rev, `ExperimentService.Down` tears down whichever
+  experiment is active, not the one named. A fix is proposed in vxedge PR #24 (open, not merged
+  as of 2026-10-29); **don't build `experiment_down` until it merges and the pin is bumped**.
   Every text ends with `This affects anyone using this host's testbed. Confirm?`
 - A confirmed tool returns the `Job` immediately; the agent follows it with
   `job_watch`/`job_get`. One RPC per tool still holds.
