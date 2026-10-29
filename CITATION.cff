@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "vxmcp: an MCP server over vxAPI for the vxedge testbed"
+type: software
+authors:
+  - family-names: "Djaafri"
+    given-names: "Fouzi"
+    affiliation: "Independent Researcher"
+repository-code: "https://github.com/vxedge/vxmcp"
+url: "https://vxedge.dev"
+version: "0.1.0"
+date-released: "2026-10-29"
+license: Apache-2.0
+keywords:
+  - mcp
+  - model-context-protocol
+  - software-defined-vehicle
+  - automotive
+  - testbed
+  - reproducible-research
+abstract: >-
+  vxmcp is a Model Context Protocol server, written in Rust, that exposes vxAPI to agent tooling.
+  Each tool is a 1:1 wrapper over one vxAPI RPC with no orchestration logic, and every mutating
+  tool asks the user to confirm first. It targets MCP specification 2026-07-28.
+references:
+  - type: software
+    title: "vxedge: specification and results of an all-software SDV network-slicing testbed"
+    authors:
+      - family-names: "Djaafri"
+        given-names: "Fouzi"
+    url: "https://github.com/vxedge/docs"
