@@ -227,18 +227,24 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         `exp-001-ws` → `-32602`; a missing workspace, accepted → vxedged's own "cannot read
         manifest" error. Not exercised live: Down refusing because a *different* experiment is
         active (needs privileged provisioning) — covered by vxedge PR #24's unit tests.
-  - **Client check, 2026-10-29 — Claude Code (from its docs, not tested live).** Per
-        `code.claude.com/docs/en/mcp.md` ("MCP client runtimes", "Respond to MCP elicitation
-        requests", "MCP tasks …"): its v2 runtime speaks 2026-07-28 and declares
-        `elicitation: {form: {}, url: {}}`, shows form elicitations as a dialog, but **does not
-        document SEP-2322 `input_required` results on `tools/call`** (no `InputRequiredResult`,
-        `requestState` or retry with `inputResponses`). What it documents instead: the MCP
-        *tasks* extension (`resultType: "task"`, questions answered via `tasks/update`) and
-        server-initiated `elicitation/create` on an open session, both in interactive
-        terminal sessions only. So with Claude Code as it's documented today, `svc_down`
-        is asked for confirmation but the client can't complete the round trip — safe
-        (nothing runs without an `accept`), but unusable there. Per the design (decision 6),
-        whether to add a second mechanism is the owner's call; not built.
+  - [x] **Client check, 2026-10-29 — Claude Code, tested live: the confirmation works.** First
+        read from `code.claude.com/docs/en/mcp.md`, which documents 2026-07-28 and form
+        elicitation but not SEP-2322 `input_required` on `tools/call` (only MCP tasks and
+        server-initiated `elicitation/create`). A throwaway spike settled it against a real
+        interactive Claude Code **2.1.312** session: a stdio MCP server logging every message,
+        with one tool per mechanism. Claude Code probes with `server/discover`, takes the
+        modern 2026-07-28 path when the server answers it (falls back to `initialize` at
+        `2025-11-25` otherwise), and declares `elicitation: {form: {}, url: {}}` on every
+        request. (A) A `tools/call` answered with `input_required` + a form elicitation + a
+        `requestState` — exactly what `crate::confirm` sends — showed the user a dialog,
+        waited for the answer, then retried with `inputResponses: {"confirm": {"action":
+        "accept", "content": {}}}` and the same `requestState`: **works, human in the loop**.
+        (B) A server-initiated `elicitation/create` during the call was dropped ("not servable
+        on this connection's protocol era"), and the call hung. So no second mechanism is
+        needed. Not covered: Claude Code versions older than 2.1.312, and vxmcp itself in
+        Claude Code (needs `vxedged` on Linux) — the spike sent the same wire shape vxmcp's
+        live Docker tests produced. Noted for the owner: the human answered 5m02s after the
+        dialog appeared (slowed by coordination), just past the 5-minute ticket TTL.
 - [ ] **#4 — Publish the manifest JSON Schema as a `vxparts` `ctl`-class part**
       (`vxparts/TASKS.md` already tracks the schema-generation half, `parts/ctl/schema/
       config/manifest-schema`) — once it exists, `vxmcp`'s tool argument schemas for anything
