@@ -116,7 +116,7 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
 | # | Task | State |
 |---|---|---|
 | 2 | Remaining read tools (`zone/compute list`, `job watch`, `events subscribe`, results-archive summary) | in progress — read tools done; results-archive summary open (needs a vxAPI RPC) |
-| 3 | MRTR confirmation flow for mutating tools | in progress — guard + `svc_down` done; more tools one PR each; `experiment_down` waits on vxedge PR #24 |
+| 3 | MRTR confirmation flow for mutating tools | in progress — guard + `svc_down` done; more tools one PR each; `experiment_down` waits on a pin bump to vxedge `e3753be` |
 | 4 | Manifest JSON Schema integration (depends on `vxparts` `ctl`-class schema part) | open |
 | 5 | Real deployment (systemd unit / process supervision) | open |
 
@@ -192,9 +192,9 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
       built 2026-10-29** (`crate::confirm`, design in
       `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md`) with `svc_down` as the
       first tool; each further mutating tool is its own small PR. **`experiment_down` waits**
-      on vxedge PR #24 merging (at the pinned rev, Down tears down whichever experiment is
-      active, not the one named; the PR, open as of 2026-10-29, makes it refuse instead) plus a
-      pin bump. Original note: the design
+      on a pin bump: at the pinned `a78e7dd`, Down tears down whichever experiment is active,
+      not the one named. vxedge PR #24 (merged 2026-10-29 as `e3753be`) makes it refuse
+      instead, so bump the pin to `e3753be` or later first. Original note: the design
       point this repo's own `AGENTS.md` states but hasn't built: return `InputRequiredResult`
       with an `InputRequest::Elicitation` asking the caller to confirm, verify the echoed
       `requestState` (caller-controlled input) before trusting it, complete on the retry. See
