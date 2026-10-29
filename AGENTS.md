@@ -83,21 +83,22 @@ Design: `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md` (owner-a
 destructive sequence (the CLI's own explicit verbs are the parity bar).
 
 - **Every** mutating tool calls `Confirmations::gate` with its own name, its *resolved*
-  arguments and its confirmation text, and runs the RPC only on `Gate::Proceed`. No exceptions
+  arguments and its confirmation text, and runs the RPC only on `Gate::Proceed`. Resolve once
+  (e.g. `resolve_workspace`) and use **that same value** for the text, the ticket and the
+  request, so a ticket can't cover a different target than the RPC acts on. No exceptions
   for "harmless" ones, and **no argument may skip or pre-answer the question** — only a human
   confirms.
 - **Fail closed**: no form-elicitation capability → `MISSING_REQUIRED_CLIENT_CAPABILITY`, never
   a silent run. No unattended/CI mode; if one is ever added it's an operator launch setting,
   off by default, never reachable through a tool call.
 - **Confirmation text says what `vxedged` actually does**, checked against its implementation,
-  not the RPC's name. Example: at the pinned rev (`a78e7dd`), `ExperimentService.Down` tears down
-  whichever experiment is active, not the one named. Fixed in vxedge `e3753be` (PR #24, merged
-  2026-10-29: Down now refuses anything but the active experiment); **don't build
-  `experiment_down` until this repo's pin is bumped to `e3753be` or later**.
+  not the RPC's name. Example: before vxedge `e3753be` (PR #24), `ExperimentService.Down` tore
+  down whichever experiment was active, not the one named; `experiment_down` was held back until
+  that fix landed and this repo's pin moved to it. **Don't move the pin below `e3753be`.**
   Every text ends with `This affects anyone using this host's testbed. Confirm?`
 - A confirmed tool returns the `Job` immediately; the agent follows it with
   `job_watch`/`job_get`. One RPC per tool still holds.
-- `svc_down` is the reference implementation.
+- Reference implementations: `svc_down` (plain argument) and `experiment_down` (resolved path).
 
 ## Rules
 

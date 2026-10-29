@@ -12,6 +12,8 @@ All notable changes to this repo are documented here. Format follows
   form elicitation with a single-use, 5-minute ticket bound to the exact call; fails closed
   when the client can't ask.
 - `svc_down` (`SvcService.Down`), the first mutating tool, behind that confirmation.
+- `experiment_down` (`ExperimentService.Down`, all stages), behind the same confirmation; the
+  workspace path is resolved once and that exact path is confirmed and sent.
 
 - Streaming read tools `job_watch` (`JobService.Watch`, follows a job until it finishes or a
   timeout passes) and `events_subscribe` (`EventService.Subscribe`, collects live events for
@@ -30,3 +32,5 @@ All notable changes to this repo are documented here. Format follows
 
 - `vxedge-api` pin bumped to `vxedge` `a78e7dd`, which makes `vxedged` reject an unknown
   `service_type`; `svc_status`'s argument doc now says so. No vxAPI surface change.
+- `vxedge-api` pin bumped to `vxedge` `e3753be`, where `ExperimentService.Down` refuses
+  anything but the active experiment. No vxAPI surface change.
