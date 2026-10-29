@@ -195,6 +195,31 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
       `rmcp`'s own `examples/servers/src/mrtr.rs` for the reference pattern. Needs a design
       pass on exactly what confirmation text/schema each mutating tool asks for before wiring
       the RPCs themselves — not assumed here, and not started.
+  - [x] **Live smoke test of `svc_down`, 2026-10-29** — Linux in Docker (`rust:1.96.1-bookworm`),
+        `vxedged` + `vxedge-cli` built at the pinned `a78e7dd`, one long-lived `vxmcp` process
+        driven by hand over stdio with modern 2026-07-28 requests (`clientCapabilities:
+        {"elicitation": {"form": {}}}`). In order: round 1 → `input_required` with one form
+        elicitation (`confirm`) carrying the exact confirmation text and a 32-char ticket;
+        retry with `accept` → `job-00000000 svc.down: pending [0%]`; the same ticket again →
+        `-32602 confirmation is invalid or expired; call the tool again to be asked`; a fresh
+        round 1 + `decline` → `not confirmed; nothing was run`; `clientCapabilities: {}` →
+        `-32021 Missing required client capability`; `service_type: bogus`, accepted → the
+        daemon's own `INVALID_ARGUMENT` "unknown service_type `bogus` (expected "ota" or
+        "telemetry")" as a JSON-RPC error (the human is asked before the daemon validates; the
+        ticket is spent either way); `job_watch` on the job → `succeeded [100%] ota service
+        down`.
+  - **Client check, 2026-10-29 — Claude Code (from its docs, not tested live).** Per
+        `code.claude.com/docs/en/mcp.md` ("MCP client runtimes", "Respond to MCP elicitation
+        requests", "MCP tasks …"): its v2 runtime speaks 2026-07-28 and declares
+        `elicitation: {form: {}, url: {}}`, shows form elicitations as a dialog, but **does not
+        document SEP-2322 `input_required` results on `tools/call`** (no `InputRequiredResult`,
+        `requestState` or retry with `inputResponses`). What it documents instead: the MCP
+        *tasks* extension (`resultType: "task"`, questions answered via `tasks/update`) and
+        server-initiated `elicitation/create` on an open session, both in interactive
+        terminal sessions only. So with Claude Code as it's documented today, `svc_down`
+        is asked for confirmation but the client can't complete the round trip — safe
+        (nothing runs without an `accept`), but unusable there. Per the design (decision 6),
+        whether to add a second mechanism is the owner's call; not built.
 - [ ] **#4 — Publish the manifest JSON Schema as a `vxparts` `ctl`-class part**
       (`vxparts/TASKS.md` already tracks the schema-generation half, `parts/ctl/schema/
       config/manifest-schema`) — once it exists, `vxmcp`'s tool argument schemas for anything
