@@ -1370,6 +1370,7 @@ name = "vxmcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "getrandom",
  "hyper-util",
  "rmcp",
  "schemars",
