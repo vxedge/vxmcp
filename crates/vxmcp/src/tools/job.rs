@@ -47,7 +47,7 @@ fn state_name(state: i32) -> &'static str {
     }
 }
 
-fn render(job: &Job) -> String {
+pub(crate) fn render(job: &Job) -> String {
     let mut out = format!(
         "{} {}: {} [{}%] {}",
         job.id,

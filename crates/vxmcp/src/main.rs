@@ -4,27 +4,31 @@
 //!
 //! Targets MCP spec 2026-07-28 on `rmcp` (the official Rust SDK): stateless request-response,
 //! `ServerHandler::get_info()` advertises `ProtocolVersion::V_2026_07_28` explicitly. Read
-//! tools only for now (`experiment_status`, `gateway_status`, `zone_list`, `compute_list`,
-//! `svc_status`, `job_get`, `job_watch`, `events_subscribe`); mutating tools (`up`/`down`/`traffic up`) wait on the MRTR
-//! confirmation flow being built and reviewed (AGENTS.md).
+//! tools: `experiment_status`, `gateway_status`, `zone_list`, `compute_list`, `svc_status`,
+//! `job_get`, `job_watch`, `events_subscribe`. Mutating tools go through `crate::confirm`'s
+//! human confirmation first (AGENTS.md); `svc_down` is the first.
 
 use rmcp::{
-    ErrorData as McpError, ServerHandler, ServiceExt,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{Implementation, ProtocolVersion, ServerCapabilities, ServerInfo},
+    ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
+    handler::server::{
+        router::tool::ToolRouter,
+        tool::{InputResponses, RequestState},
+        wrapper::Parameters,
+    },
+    model::{CallToolResponse, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo},
+    service::RequestContext,
     tool, tool_handler, tool_router,
     transport::stdio,
 };
 
-// Unused outside tests until svc_down lands (Task 2 of the #3 plan); removed there.
-#[cfg_attr(not(test), allow(dead_code))]
 mod confirm;
 mod tools;
 
+use confirm::{Confirmations, Gate};
 use tools::events::EventsSubscribeArgs;
 use tools::experiment::ExperimentStatusArgs;
 use tools::job::{JobGetArgs, JobWatchArgs};
-use tools::svc::SvcStatusArgs;
+use tools::svc::{SvcDownArgs, SvcStatusArgs};
 
 /// Where to reach `vxedged` — same default and `unix://`-only contract `vxedge-cli` uses
 /// (`vxedge/crates/vxedge-cli/src/main.rs`'s own `connect()`, copied here rather than shared,
@@ -59,6 +63,8 @@ async fn connect(endpoint: &str) -> Result<tonic::transport::Channel, anyhow::Er
 #[derive(Clone)]
 struct VxmcpServer {
     channel: tonic::transport::Channel,
+    /// Pending human confirmations for mutating tools, shared by every clone of the server.
+    confirmations: std::sync::Arc<Confirmations>,
     // Read by #[tool_handler]'s generated ServerHandler methods (list_tools/call_tool), not
     // directly by any code in this file — dead-code analysis doesn't trace through that macro
     // expansion, the same known false-positive rmcp's own examples silence identically
@@ -72,6 +78,7 @@ impl VxmcpServer {
     fn new(channel: tonic::transport::Channel) -> Self {
         Self {
             channel,
+            confirmations: std::sync::Arc::new(Confirmations::new()),
             tool_router: Self::tool_router(),
         }
     }
@@ -174,6 +181,37 @@ impl VxmcpServer {
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))
     }
+
+    #[tool(
+        description = "Stop an experiment service (`ota` or `telemetry`) on this host. Asks \
+                        the human user to confirm first; fails if the client can't ask. \
+                        Returns the job; follow it with job_watch.",
+        annotations(destructive_hint = true)
+    )]
+    async fn svc_down(
+        &self,
+        Parameters(args): Parameters<SvcDownArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let gate = self.confirmations.gate(
+            ctx.client_capabilities().as_ref(),
+            "svc_down",
+            &serde_json::json!({ "service_type": args.service_type }),
+            &tools::svc::down_confirmation(&args.service_type),
+            state,
+            responses,
+        )?;
+        match gate {
+            Gate::Ask(r) => Ok(r.into()),
+            Gate::NotConfirmed(r) => Ok(r.into()),
+            Gate::Proceed => tools::svc::down(self.channel.clone(), args)
+                .await
+                .map(Into::into)
+                .map_err(|e| McpError::internal_error(e.to_string(), None)),
+        }
+    }
 }
 
 #[tool_handler]
@@ -185,7 +223,8 @@ impl ServerHandler for VxmcpServer {
             .with_instructions(
                 "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Read tools only for \
                  now: experiment_status, gateway_status, zone_list, compute_list, svc_status, \
-                 job_get, job_watch, events_subscribe. Point VXEDGE_ENDPOINT at a running vxedged (unix:///path.sock) \
+                 job_get, job_watch, events_subscribe; and svc_down (mutating, asks the user to \
+                 confirm). Point VXEDGE_ENDPOINT at a running vxedged (unix:///path.sock) \
                  before calling any tool."
                     .to_string(),
             )
