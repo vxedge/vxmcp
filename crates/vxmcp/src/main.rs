@@ -16,6 +16,9 @@ use rmcp::{
     transport::stdio,
 };
 
+// Unused outside tests until svc_down lands (Task 2 of the #3 plan); removed there.
+#[cfg_attr(not(test), allow(dead_code))]
+mod confirm;
 mod tools;
 
 use tools::events::EventsSubscribeArgs;
