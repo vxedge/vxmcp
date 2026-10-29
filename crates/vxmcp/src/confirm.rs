@@ -100,21 +100,23 @@ impl Confirmations {
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .remove(&ticket_id);
-        let valid = ticket.is_some_and(|t| t.expires_at > now && t.tool == tool && &t.args == args);
-        if !valid {
-            return Err(invalid());
-        }
         let answer = input_responses
             .and_then(|mut r| r.remove(CONFIRM_KEY))
             .and_then(|v| serde_json::from_value::<ElicitResult>(v).ok())
             .ok_or_else(invalid)?;
-        Ok(match answer.action {
-            ElicitationAction::Accept => Gate::Proceed,
-            // Decline, cancel, and any action a future spec adds: only `accept` runs the call.
-            _ => Gate::NotConfirmed(CallToolResult::success(vec![ContentBlock::text(
-                "not confirmed; nothing was run",
-            )])),
-        })
+        // Decline, cancel, and any action a future spec adds: only `accept` runs the call. A "no"
+        // stands whatever the ticket's state — answering it with "call again to be asked" would
+        // send the agent back to a human who just said no.
+        if !matches!(answer.action, ElicitationAction::Accept) {
+            return Ok(Gate::NotConfirmed(CallToolResult::success(vec![
+                ContentBlock::text("not confirmed; nothing was run"),
+            ])));
+        }
+        let valid = ticket.is_some_and(|t| t.expires_at > now && t.tool == tool && &t.args == args);
+        if !valid {
+            return Err(invalid());
+        }
+        Ok(Gate::Proceed)
     }
 
     fn ask(
@@ -332,6 +334,33 @@ mod tests {
             Some(t),
             Some(accept()),
         ));
+    }
+
+    #[test]
+    fn a_decline_stands_even_on_an_expired_or_unknown_ticket() {
+        // "No" must never come back as "call again to be asked": nothing runs on a decline, so
+        // the ticket's state doesn't matter for it.
+        let c = Confirmations::new();
+        let t0 = Instant::now();
+        let t = ask_at(&c, t0);
+        let expired = c.gate_at(
+            t0 + TICKET_TTL + Duration::from_secs(1),
+            Some(&form_caps()),
+            "svc_down",
+            &ota(),
+            TEXT,
+            Some(t),
+            Some(answer("decline")),
+        );
+        assert!(matches!(expired, Ok(Gate::NotConfirmed(_))), "{expired:?}");
+        let unknown = retry(
+            &c,
+            "svc_down",
+            &ota(),
+            "not-a-ticket",
+            Some(answer("cancel")),
+        );
+        assert!(matches!(unknown, Ok(Gate::NotConfirmed(_))), "{unknown:?}");
     }
 
     #[test]

@@ -61,7 +61,8 @@ it.
 1. **Remove** the ticket from the map (single use, whatever happens next).
 2. Refuse unless all hold: the ticket existed, it hasn't expired, its tool name and resolved
    arguments equal this call's, and `inputResponses["confirm"]` is an elicitation result with
-   `action: accept`. `decline`/`cancel` gets a plain "not confirmed, nothing was run" result.
+   `action: accept`. `decline`/`cancel` gets a plain "not confirmed, nothing was run" result,
+   whatever the ticket's state, so a "no" is never answered with "call again".
    Any other failure (unknown, expired or mismatched ticket, missing response) is an error
    saying the confirmation is invalid and to call again.
 3. Only then make the one vxAPI RPC, and return the `Job` it gives back as text (id, kind,
