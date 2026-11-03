@@ -1,26 +1,31 @@
-//! `events_subscribe` — a direct 1:1 call to `EventService.Subscribe` (server streaming).
-//! The daemon's bus is live-only (no history: `vxedged`'s `BroadcastStream` over its event
-//! bus), so this collects whatever is emitted during a caller-chosen window (default 10s,
-//! capped at 60s), stopping early at 200 events, and returns them in one result — the same
-//! collect-then-return shape as `job_watch` (`TASKS.md` #2, chosen 2026-10-29).
+//! `events_subscribe` — a direct 1:1 call to `EventService.Subscribe` (server streaming). It
+//! collects what is emitted during a caller-chosen window (default 10s, capped at 60s), stopping
+//! early at 200 events, and returns them in one result — the same collect-then-return shape as
+//! `job_watch` (`TASKS.md` #2). vxedged keeps a bounded history (1,024 events), so `after_id`
+//! replays from a cursor with no gap; `lastId` in the result is the cursor for the next call. A
+//! cursor the history no longer holds is refused as `ERROR_REASON_EVENTS_LOST`: re-read status,
+//! then subscribe again.
 
 use std::time::Duration;
 
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::CallToolResult;
 use tokio_stream::{Stream, StreamExt};
 use vxedge_api::v1::event_service_client::EventServiceClient;
 use vxedge_api::v1::{Event, SubscribeRequest};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct EventsSubscribeArgs {
-    /// Event kinds to keep, e.g. `state-transition`, `audit`, `reconcile`. Empty or omitted
-    /// means every kind; the daemon does the filtering.
+    /// Event kinds to keep, e.g. `run.up` or a family such as `zone` (matching `zone.up` and
+    /// `zone.down`). Empty or omitted means every kind; the daemon does the filtering.
     #[serde(default)]
     pub kinds: Vec<String>,
-    /// How long to listen, in seconds. Default 10, capped at 60. Only events emitted during
-    /// this window are returned — the daemon keeps no event history.
+    /// How long to listen, in seconds. Default 10, capped at 60.
     #[serde(default)]
     pub duration_secs: Option<u64>,
+    /// Resume after this event id (the previous result's `lastId`): history after it is replayed
+    /// first. Omitted means live events only.
+    #[serde(default)]
+    pub after_id: Option<String>,
 }
 
 const DEFAULT_WINDOW_SECS: u64 = 10;
@@ -39,15 +44,15 @@ pub async fn subscribe(
     args: EventsSubscribeArgs,
 ) -> anyhow::Result<CallToolResult> {
     let secs = window_secs(args.duration_secs);
-    let mut client = EventServiceClient::new(channel);
-    let stream = client
-        .subscribe(SubscribeRequest { kinds: args.kinds })
+    let stream = EventServiceClient::new(channel)
+        .subscribe(SubscribeRequest {
+            kinds: args.kinds,
+            after_id: args.after_id.unwrap_or_default(),
+        })
         .await?
         .into_inner();
     let (events, end) = collect_events(stream, Duration::from_secs(secs), MAX_EVENTS).await?;
-    Ok(CallToolResult::success(vec![ContentBlock::text(
-        render_events(&events, &end, secs),
-    )]))
+    super::out::json(&events_json(&events, &end, secs))
 }
 
 #[derive(Debug)]
@@ -84,27 +89,20 @@ where
     Ok((events, end))
 }
 
-fn render_events(events: &[Event], end: &EventsEnd, secs: u64) -> String {
-    if events.is_empty() && matches!(end, EventsEnd::WindowClosed) {
-        return format!("no events in {secs}s");
+/// `end` says why collecting stopped: `window_closed`, `capped` at the event limit, or
+/// `stream_ended`. `lastId` is the cursor for a follow-up call's `after_id`; with no events it
+/// is absent, and the caller keeps its previous cursor.
+fn events_json(events: &[Event], end: &EventsEnd, secs: u64) -> serde_json::Value {
+    let end = match end {
+        EventsEnd::WindowClosed => "window_closed",
+        EventsEnd::Capped => "capped",
+        EventsEnd::StreamEnded => "stream_ended",
+    };
+    let mut v = serde_json::json!({ "end": end, "windowSecs": secs, "events": events });
+    if let Some(last) = events.last() {
+        v["lastId"] = serde_json::Value::String(last.id.clone());
     }
-    // `resource_kind` stays a bare ResourceKind ordinal, matching the crate's `[state=N]`
-    // convention for enums.
-    let mut lines: Vec<String> = events
-        .iter()
-        .map(|e| {
-            format!(
-                "{} {} {} (resource_kind={}) {}",
-                e.ts_unix_ms, e.kind, e.resource_vxid, e.resource_kind, e.detail
-            )
-        })
-        .collect();
-    match end {
-        EventsEnd::WindowClosed => {}
-        EventsEnd::Capped => lines.push(format!("(stopped at {} events)", events.len())),
-        EventsEnd::StreamEnded => lines.push("(event stream ended early)".to_string()),
-    }
-    lines.join("\n")
+    v
 }
 
 #[cfg(test)]
@@ -121,6 +119,7 @@ mod tests {
             resource_kind: 2,
             resource_vxid: "zone-front".into(),
             detail: "up".into(),
+            run_id: "run-1".into(),
         }
     }
 
@@ -135,6 +134,7 @@ mod tests {
             serde_json::from_value(serde_json::json!({ "kinds": ["audit"], "duration_secs": 5 }))
                 .unwrap();
         assert_eq!(b.kinds, vec!["audit".to_string()]);
+        assert_eq!(b.after_id, None);
     }
 
     #[tokio::test]
@@ -145,10 +145,11 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(end, EventsEnd::WindowClosed));
-        assert_eq!(
-            render_events(&events, &end, 4),
-            "1 audit zone-front (resource_kind=2) up\n2 state-transition zone-front (resource_kind=2) up"
-        );
+        let v = events_json(&events, &end, 4);
+        assert_eq!(v["end"], "window_closed");
+        assert_eq!(v["events"][1]["kind"], "state-transition");
+        assert_eq!(v["events"][0]["runId"], "run-1");
+        assert_eq!(v["lastId"], "e-2");
     }
 
     #[tokio::test]
@@ -158,7 +159,7 @@ mod tests {
         let (events, end) = collect_events(s, Duration::from_secs(5), 3).await.unwrap();
         assert_eq!(events.len(), 3);
         assert!(matches!(end, EventsEnd::Capped));
-        assert!(render_events(&events, &end, 5).ends_with("(stopped at 3 events)"));
+        assert_eq!(events_json(&events, &end, 5)["end"], "capped");
     }
 
     #[tokio::test]
@@ -166,7 +167,9 @@ mod tests {
         let (events, end) = collect_events(tokio_stream::pending(), Duration::from_millis(10), 200)
             .await
             .unwrap();
-        assert_eq!(render_events(&events, &end, 2), "no events in 2s");
+        let v = events_json(&events, &end, 2);
+        assert_eq!(v["events"].as_array().unwrap().len(), 0);
+        assert!(v.get("lastId").is_none());
     }
 
     #[tokio::test]
@@ -176,6 +179,6 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(end, EventsEnd::StreamEnded));
-        assert!(render_events(&events, &end, 5).ends_with("(event stream ended early)"));
+        assert_eq!(events_json(&events, &end, 5)["end"], "stream_ended");
     }
 }

@@ -12,25 +12,54 @@ vxedge is an open, all-software testbed for mapping 5G network slices onto zonal
 
 ## Tools
 
-| Tool | vxAPI RPC | Kind |
-|---|---|---|
-| `experiment_status` | `ExperimentService.Status` | read |
-| `gateway_status` | `GatewayService.Status` | read |
-| `zone_list` | `ZoneService.List` | read |
-| `compute_list` | `ComputeService.List` | read |
-| `svc_status` | `SvcService.Status` | read |
-| `job_get` | `JobService.Get` | read |
-| `job_watch` | `JobService.Watch` | read, collects the stream until the job ends or a timeout |
-| `events_subscribe` | `EventService.Subscribe` | read, collects events for a short window |
-| `svc_down` | `SvcService.Down` | mutating, asks the user to confirm first |
-| `experiment_down` | `ExperimentService.Down` | mutating, asks the user to confirm first |
+Every result is the RPC's own response as typed JSON, in the canonical Protobuf mapping: enum
+values by name (`"state": "JOB_STATE_FAILED"`), lowerCamelCase fields. A refusal from `vxedged`
+is a tool error the agent can read, with the typed reason:
 
-Mutating tools are wired one at a time, each behind the human confirmation flow described in
-[`AGENTS.md`](AGENTS.md): the server answers the first call with a form elicitation, and runs
-the RPC only when the user accepts, on a single-use ticket bound to the exact arguments. A
-client that cannot ask the user gets an error, never a silent run. A confirmed tool returns the
-job at once; follow it with `job_watch`. More tools follow, see [`TASKS.md`](TASKS.md). The
-project-wide state of this frontend is `frontend.mcp` in
+```json
+{"error": {"code": "ABORTED", "reason": "ERROR_REASON_BUSY", "domain": "vxedge.v1",
+           "message": "...", "metadata": {"job_id": "job-..."}}}
+```
+
+**Read tools**
+
+| Tool | vxAPI RPC |
+|---|---|
+| `host_capabilities` | `HostService.Capabilities` |
+| `workspace_plan` | `WorkspaceService.Plan` |
+| `run_list`, `run_get` | `RunService.List`, `RunService.Get` |
+| `experiment_status` | `ExperimentService.Status` |
+| `vehicle_status` | `VehicleService.Status` |
+| `gateway_status` | `GatewayService.Status` |
+| `zone_list`, `compute_list` | `ZoneService.List`, `ComputeService.List` |
+| `svc_status` | `SvcService.Status` |
+| `traffic_status` | `TrafficService.Status` |
+| `noscheck_status` | `NosCheckService.Status` |
+| `job_get`, `job_list` | `JobService.Get`, `JobService.List` |
+| `job_watch` | `JobService.Watch`, collected until the job ends or a timeout |
+| `events_subscribe` | `EventService.Subscribe`, collected for a short window; resumes from `lastId` |
+
+**Mutating tools**, each asking the user to confirm first and returning a job
+
+| Tool | vxAPI RPC |
+|---|---|
+| `experiment_up`, `experiment_down` | `ExperimentService.Up`, `.Down` |
+| `vehicle_up`, `vehicle_down` | `VehicleService.Up`, `.Down` |
+| `svc_up`, `svc_down` | `SvcService.Up`, `.Down` |
+| `traffic_up`, `traffic_down` | `TrafficService.Up`, `.Down` |
+| `noscheck_up`, `noscheck_verify`, `noscheck_down` | `NosCheckService.Up`, `.Verify`, `.Down` |
+| `telemetry_collect` | `TelemetryService.Collect` |
+| `job_cancel` | `JobService.Cancel` |
+
+Tools that act on a run take an optional `run_id` from `run_list`; omitted, it means the only
+run. `traffic_up` and `noscheck_verify` take a `request_id`, so a retry returns the original
+job instead of starting the work twice.
+
+Mutating tools go through the human confirmation flow described in [`AGENTS.md`](AGENTS.md):
+the server answers the first call with a form elicitation, and runs the RPC only when the user
+accepts, on a single-use ticket bound to the exact arguments. A client that cannot ask the user
+gets an error, never a silent run. Follow the returned job with `job_watch`. The project-wide
+state of this frontend is `frontend.mcp` in
 [`docs/FACTS.md`](https://github.com/vxedge/docs/blob/main/FACTS.md).
 
 ## MCP version

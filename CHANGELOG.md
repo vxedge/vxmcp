@@ -6,6 +6,29 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+Needs `vxedged` 0.5.0 or newer.
+
+### Added
+
+- Read tools: `host_capabilities`, `workspace_plan`, `run_list`, `run_get`, `vehicle_status`,
+  `traffic_status`, `noscheck_status`, `job_list`.
+- Mutating tools, each behind the human confirmation: `experiment_up`, `vehicle_up`,
+  `vehicle_down`, `svc_up`, `traffic_up`, `traffic_down`, `noscheck_up`, `noscheck_verify`,
+  `noscheck_down`, `telemetry_collect`, `job_cancel`. With the existing tools, an agent can run
+  a full experiment through vxmcp alone.
+- `run_id` on every tool that acts on a run, `stages` on the experiment and vehicle verbs, and
+  `request_id` on `traffic_up` and `noscheck_verify`.
+- `events_subscribe` takes `after_id` and returns `lastId`, so a follow-up call resumes with no
+  gap. `svc_status` takes an optional `workspace`.
+
+### Changed
+
+- Every result is the RPC's response as typed JSON with enum values by name, in
+  `structuredContent` and as text, instead of `[state=N]` lines.
+- A refusal from `vxedged` is a tool error the model can read, carrying its gRPC code and
+  `ErrorReason`, instead of a JSON-RPC internal error.
+- `vxedge-api` pinned to the 0.5.0 contract, with its `serde` feature.
+
 ## [0.1.0] - 2026-10-29
 
 First release: a stdio MCP server over vxAPI, targeting MCP specification 2026-07-28.

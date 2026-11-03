@@ -3,10 +3,12 @@
 //! `vxedge-cli` follows).
 //!
 //! Targets MCP spec 2026-07-28 on `rmcp` (the official Rust SDK): stateless request-response,
-//! `ServerHandler::get_info()` advertises `ProtocolVersion::V_2026_07_28` explicitly. Read
-//! tools: `experiment_status`, `gateway_status`, `zone_list`, `compute_list`, `svc_status`,
-//! `job_get`, `job_watch`, `events_subscribe`. Mutating tools go through `crate::confirm`'s
-//! human confirmation first (AGENTS.md): `svc_down`, `experiment_down`.
+//! `ServerHandler::get_info()` advertises `ProtocolVersion::V_2026_07_28` explicitly. Results
+//! are the RPC's response as typed JSON, and a vxedged refusal is a tool error carrying its
+//! `ErrorReason` (`tools::out`). Mutating tools go through `crate::confirm`'s human
+//! confirmation first (AGENTS.md).
+
+use std::future::Future;
 
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler, ServiceExt,
@@ -15,7 +17,10 @@ use rmcp::{
         tool::{InputResponses, RequestState},
         wrapper::Parameters,
     },
-    model::{CallToolResponse, Implementation, ProtocolVersion, ServerCapabilities, ServerInfo},
+    model::{
+        CallToolResponse, CallToolResult, Implementation, ProtocolVersion, ServerCapabilities,
+        ServerInfo,
+    },
     service::RequestContext,
     tool, tool_handler, tool_router,
     transport::stdio,
@@ -26,9 +31,16 @@ mod tools;
 
 use confirm::{Confirmations, Gate};
 use tools::events::EventsSubscribeArgs;
-use tools::experiment::{ExperimentDownArgs, ExperimentStatusArgs};
-use tools::job::{JobGetArgs, JobWatchArgs};
-use tools::svc::{SvcDownArgs, SvcStatusArgs};
+use tools::experiment::{ExperimentDownArgs, ExperimentStatusArgs, ExperimentUpArgs};
+use tools::job::{JobCancelArgs, JobGetArgs, JobListArgs, JobWatchArgs};
+use tools::noscheck::NosCheckArgs;
+use tools::out::finish;
+use tools::run::RunArgs;
+use tools::svc::{SvcDownArgs, SvcStatusArgs, SvcUpArgs};
+use tools::telemetry::CollectArgs;
+use tools::traffic::{TrafficArgs, TrafficStatusArgs};
+use tools::vehicle::{VehicleStageArgs, VehicleStatusArgs};
+use tools::workspace::WorkspaceArgs;
 
 /// Where to reach `vxedged` — same default and `unix://`-only contract `vxedge-cli` uses
 /// (`vxedge/crates/vxedge-cli/src/main.rs`'s own `connect()`, copied here rather than shared,
@@ -73,6 +85,35 @@ struct VxmcpServer {
     tool_router: ToolRouter<VxmcpServer>,
 }
 
+/// Runs a mutating tool's one RPC only after the human confirmed exactly `args` (AGENTS.md).
+/// `run` is built before the gate but not polled unless the gate says proceed.
+impl VxmcpServer {
+    #[allow(clippy::too_many_arguments)]
+    async fn gated(
+        &self,
+        ctx: &RequestContext<RoleServer>,
+        state: Option<String>,
+        responses: Option<rmcp::model::InputResponses>,
+        tool: &'static str,
+        args: serde_json::Value,
+        question: String,
+        run: impl Future<Output = anyhow::Result<CallToolResult>>,
+    ) -> Result<CallToolResponse, McpError> {
+        match self.confirmations.gate(
+            ctx.client_capabilities().as_ref(),
+            tool,
+            &args,
+            &question,
+            state,
+            responses,
+        )? {
+            Gate::Ask(r) => Ok(r.into()),
+            Gate::NotConfirmed(r) => Ok(r.into()),
+            Gate::Proceed => finish(run.await).map(Into::into),
+        }
+    }
+}
+
 #[tool_router]
 impl VxmcpServer {
     fn new(channel: tonic::transport::Channel) -> Self {
@@ -83,142 +124,207 @@ impl VxmcpServer {
         }
     }
 
+    fn ch(&self) -> tonic::transport::Channel {
+        self.channel.clone()
+    }
+
+    // ---- Read tools: no confirmation. ----
+
     #[tool(
-        description = "Get the status of the experiment workspace at the given path (the same \
-                        status `vxedge experiment status` reports, run from that directory) — a \
-                        top-level status plus per-component (gateway, zones, services) state."
+        description = "What this host can run: the zone backends and part kinds available, and \
+                        how many runs it holds at once. Call before choosing a workspace."
+    )]
+    async fn host_capabilities(&self) -> Result<CallToolResult, McpError> {
+        finish(tools::workspace::capabilities(self.ch()).await)
+    }
+
+    #[tool(
+        description = "Plan a workspace without changing anything: the checks experiment_up and \
+                        vehicle_up make first, each with a typed reason if it fails, and the \
+                        nodes they would provision."
+    )]
+    async fn workspace_plan(
+        &self,
+        Parameters(args): Parameters<WorkspaceArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::workspace::plan(self.ch(), args).await)
+    }
+
+    #[tool(description = "List the runs on this host: each run's id, workspace and start time.")]
+    async fn run_list(&self) -> Result<CallToolResult, McpError> {
+        finish(tools::run::list(self.ch()).await)
+    }
+
+    #[tool(description = "Get one run by id; omit the id to mean the only run on this host.")]
+    async fn run_get(
+        &self,
+        Parameters(args): Parameters<RunArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::run::get(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Get the status of the experiment workspace at the given path: a \
+                        top-level status plus each component's typed state."
     )]
     async fn experiment_status(
         &self,
         Parameters(args): Parameters<ExperimentStatusArgs>,
-    ) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::experiment::status(self.channel.clone(), args)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::experiment::status(self.ch(), args).await)
     }
 
     #[tool(
-        description = "Get the gateway's observed status (the same status `vxedge status` \
-                        reports) — a top-level status plus per-slice state, link impairments, \
-                        ingress filters and tunnels actually observed on the kernel."
+        description = "Get the status of the vehicle workspace at the given path: each stage \
+                        and node, observed on the host."
     )]
-    async fn gateway_status(&self) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::gateway::status(self.channel.clone())
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    async fn vehicle_status(
+        &self,
+        Parameters(args): Parameters<VehicleStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::vehicle::status(self.ch(), args).await)
     }
 
     #[tool(
-        description = "List the zones the active experiment declares, with each zone's \
-                        observed state (the same list `vxedge zone list` reports)."
+        description = "Get the gateway's observed status: slices, link impairments, ingress \
+                        filters and tunnels as found on the kernel."
     )]
-    async fn zone_list(&self) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::zone::list(self.channel.clone())
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    async fn gateway_status(&self) -> Result<CallToolResult, McpError> {
+        finish(tools::gateway::status(self.ch()).await)
+    }
+
+    #[tool(description = "List the zones a run declares, each with its observed, typed status.")]
+    async fn zone_list(
+        &self,
+        Parameters(args): Parameters<RunArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::zone::list(self.ch(), args).await)
     }
 
     #[tool(
-        description = "List the compute nodes the active experiment declares, with each \
-                        node's observed state (the same list `vxedge compute list` reports)."
+        description = "List the compute nodes a run declares, each with its observed, typed \
+                        status."
     )]
-    async fn compute_list(&self) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::compute::list(self.channel.clone())
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    async fn compute_list(
+        &self,
+        Parameters(args): Parameters<RunArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::compute::list(self.ch(), args).await)
     }
 
     #[tool(
-        description = "Get whether an experiment service (`ota` or `telemetry`) is running \
-                        on this host."
+        description = "Get an experiment service's status (`ota` or `telemetry`). With a \
+                        workspace, the service it declares and where it is placed; without one, \
+                        whether it runs on this host."
     )]
     async fn svc_status(
         &self,
         Parameters(args): Parameters<SvcStatusArgs>,
-    ) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::svc::status(self.channel.clone(), args)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::svc::status(self.ch(), args).await)
     }
 
     #[tool(
-        description = "Get one snapshot of a job by id — its kind, state, progress, latest \
-                        message and any error. Every mutating vxAPI call returns a job id."
+        description = "Get each traffic profile's state in a run: running, finished or failed, \
+                        from the exit code its load generator left."
+    )]
+    async fn traffic_status(
+        &self,
+        Parameters(args): Parameters<TrafficStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::traffic::status(self.ch(), args).await)
+    }
+
+    #[tool(description = "Get whether the workspace's NOS check instance runs in a run.")]
+    async fn noscheck_status(
+        &self,
+        Parameters(args): Parameters<NosCheckArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::noscheck::status(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Get one snapshot of a job by id: kind, state, progress, message, typed \
+                        failure reason and any artifact. Every mutating tool returns a job."
     )]
     async fn job_get(
         &self,
         Parameters(args): Parameters<JobGetArgs>,
-    ) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::job::get(self.channel.clone(), args)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::job::get(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "List jobs, filtered by state, kind, run or parent job, newest first, in \
+                        pages."
+    )]
+    async fn job_list(
+        &self,
+        Parameters(args): Parameters<JobListArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::job::list(self.ch(), args).await)
     }
 
     #[tool(
         description = "Follow a job by id until it succeeds, fails or is cancelled, or until \
-                        the timeout passes (default 60s, max 300s). Returns each progress step \
-                        seen and the final state; on a timeout, call again to keep watching."
+                        the timeout passes (default 60s, max 300s). `end` says which; on \
+                        `timed_out`, call again to keep watching."
     )]
     async fn job_watch(
         &self,
         Parameters(args): Parameters<JobWatchArgs>,
-    ) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::job::watch(self.channel.clone(), args)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::job::watch(self.ch(), args).await)
     }
 
     #[tool(
-        description = "Collect daemon events (state transitions, audit, reconcile) emitted \
-                        during a short window (default 10s, max 60s), optionally filtered by \
-                        kind. Live only: events from before the call are not returned."
+        description = "Collect daemon events during a short window (default 10s, max 60s), \
+                        optionally filtered by kind or family. Pass the previous result's \
+                        `lastId` as `after_id` to resume with no gap."
     )]
     async fn events_subscribe(
         &self,
         Parameters(args): Parameters<EventsSubscribeArgs>,
-    ) -> Result<rmcp::model::CallToolResult, McpError> {
-        tools::events::subscribe(self.channel.clone(), args)
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::events::subscribe(self.ch(), args).await)
     }
 
+    // ---- Mutating tools: each asks the human first and returns a job for job_watch. ----
+
     #[tool(
-        description = "Stop an experiment service (`ota` or `telemetry`) on this host. Asks \
-                        the human user to confirm first; fails if the client can't ask. \
-                        Returns the job; follow it with job_watch.",
+        description = "Bring up the experiment at the given workspace path, all stages or the \
+                        ones named. Asks the human user to confirm first. Returns the job.",
         annotations(destructive_hint = true)
     )]
-    async fn svc_down(
+    async fn experiment_up(
         &self,
-        Parameters(args): Parameters<SvcDownArgs>,
+        Parameters(args): Parameters<ExperimentUpArgs>,
         RequestState(state): RequestState,
         InputResponses(responses): InputResponses,
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        let gate = self.confirmations.gate(
-            ctx.client_capabilities().as_ref(),
-            "svc_down",
-            &serde_json::json!({ "service_type": args.service_type }),
-            &tools::svc::down_confirmation(&args.service_type),
+        tools::out::check_stages(&args.stages)?;
+        // Resolved once: the confirmation, the ticket and the RPC all use this exact string.
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::experiment::up_confirmation(&ws, &args.stages);
+        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
+        let run = tools::experiment::up(self.ch(), ws, &args.stages);
+        self.gated(
+            &ctx,
             state,
             responses,
-        )?;
-        match gate {
-            Gate::Ask(r) => Ok(r.into()),
-            Gate::NotConfirmed(r) => Ok(r.into()),
-            Gate::Proceed => tools::svc::down(self.channel.clone(), args)
-                .await
-                .map(Into::into)
-                .map_err(|e| McpError::internal_error(e.to_string(), None)),
-        }
+            "experiment_up",
+            bound,
+            question,
+            run,
+        )
+        .await
     }
 
     #[tool(
-        description = "Tear down the experiment at the given workspace path: stops the services \
-                        it declares, its zones and this host's gateway. Only the experiment \
-                        active on this host can be torn down. Asks the human user to confirm \
-                        first; fails if the client can't ask. Returns the job; follow it with \
-                        job_watch.",
+        description = "Tear down the experiment at the given workspace path: its services, \
+                        zones and this host's gateway. Only the active experiment can be torn \
+                        down. Asks the human user to confirm first. Returns the job.",
         annotations(destructive_hint = true)
     )]
     async fn experiment_down(
@@ -228,27 +334,282 @@ impl VxmcpServer {
         InputResponses(responses): InputResponses,
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        // Resolved once: the confirmation, the ticket and the RPC all use this exact string.
-        let workspace = tools::experiment::resolve_workspace(&args.workspace);
-        let gate = self.confirmations.gate(
-            ctx.client_capabilities().as_ref(),
-            "experiment_down",
-            &serde_json::json!({ "workspace": workspace }),
-            &tools::experiment::down_confirmation(&workspace),
+        tools::out::check_stages(&args.stages)?;
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::experiment::down_confirmation(&ws, &args.stages);
+        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
+        let run = tools::experiment::down(self.ch(), ws, &args.stages);
+        self.gated(
+            &ctx,
             state,
             responses,
-        )?;
-        match gate {
-            Gate::Ask(r) => Ok(r.into()),
-            Gate::NotConfirmed(r) => Ok(r.into()),
-            Gate::Proceed => tools::experiment::down(self.channel.clone(), workspace)
-                .await
-                .map(Into::into)
-                .map_err(|e| McpError::internal_error(e.to_string(), None)),
-        }
+            "experiment_down",
+            bound,
+            question,
+            run,
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Bring up the vehicle at the given workspace path, all stages or the ones \
+                        named. Asks the human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn vehicle_up(
+        &self,
+        Parameters(args): Parameters<VehicleStageArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        tools::out::check_stages(&args.stages)?;
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::vehicle::up_confirmation(&ws, &args.stages);
+        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
+        let run = tools::vehicle::up(self.ch(), ws, &args.stages);
+        self.gated(&ctx, state, responses, "vehicle_up", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Tear down the vehicle at the given workspace path, in reverse stage \
+                        order. Only the active vehicle can be torn down. Asks the human user to \
+                        confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn vehicle_down(
+        &self,
+        Parameters(args): Parameters<VehicleStageArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        tools::out::check_stages(&args.stages)?;
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::vehicle::down_confirmation(&ws, &args.stages);
+        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
+        let run = tools::vehicle::down(self.ch(), ws, &args.stages);
+        self.gated(&ctx, state, responses, "vehicle_down", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Start traffic profiles a workspace declares, in a run that is up. A \
+                        `request_id` makes a retry return the original job. Asks the human user \
+                        to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn traffic_up(
+        &self,
+        Parameters(args): Parameters<TrafficArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::traffic::up_confirmation(&ws, &args.profiles);
+        let bound = serde_json::json!({
+            "workspace": ws, "profiles": args.profiles, "run_id": args.run_id,
+            "request_id": args.request_id,
+        });
+        let run = tools::traffic::up(self.ch(), ws, args);
+        self.gated(&ctx, state, responses, "traffic_up", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Stop traffic profiles a workspace declares, in a run that is up. Asks \
+                        the human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn traffic_down(
+        &self,
+        Parameters(args): Parameters<TrafficArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::traffic::down_confirmation(&ws, &args.profiles);
+        let bound = serde_json::json!({
+            "workspace": ws, "profiles": args.profiles, "run_id": args.run_id,
+        });
+        let run = tools::traffic::down(self.ch(), ws, args);
+        self.gated(&ctx, state, responses, "traffic_down", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Start an experiment service (`ota` or `telemetry`) that a workspace \
+                        declares, in a run that is up. Asks the human user to confirm first. \
+                        Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn svc_up(
+        &self,
+        Parameters(args): Parameters<SvcUpArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::svc::up_confirmation(&args.service_type, &ws);
+        let bound = serde_json::json!({
+            "service_type": args.service_type, "workspace": ws, "run_id": args.run_id,
+        });
+        let run = tools::svc::up(self.ch(), args.service_type, ws, args.run_id);
+        self.gated(&ctx, state, responses, "svc_up", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Stop an experiment service (`ota` or `telemetry`) on this host. Asks \
+                        the human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn svc_down(
+        &self,
+        Parameters(args): Parameters<SvcDownArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let question = tools::svc::down_confirmation(&args.service_type);
+        let bound = serde_json::json!({ "service_type": args.service_type, "run_id": args.run_id });
+        let run = tools::svc::down(self.ch(), args);
+        self.gated(&ctx, state, responses, "svc_down", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Boot the NOS check instance a workspace declares, in a run that is up. \
+                        Asks the human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn noscheck_up(
+        &self,
+        Parameters(args): Parameters<NosCheckArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::noscheck::confirmation("up", &ws);
+        let bound = serde_json::json!({ "workspace": ws, "run_id": args.run_id });
+        let run = tools::noscheck::up(self.ch(), ws, args);
+        self.gated(&ctx, state, responses, "noscheck_up", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Stop the NOS check instance a workspace declares. Asks the human user to \
+                        confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn noscheck_down(
+        &self,
+        Parameters(args): Parameters<NosCheckArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::noscheck::confirmation("down", &ws);
+        let bound = serde_json::json!({ "workspace": ws, "run_id": args.run_id });
+        let run = tools::noscheck::down(self.ch(), ws, args);
+        self.gated(
+            &ctx,
+            state,
+            responses,
+            "noscheck_down",
+            bound,
+            question,
+            run,
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Verify the switch config against the gateway plan on a disposable NOS \
+                        check instance, field by field. A `request_id` makes a retry return the \
+                        original job. Asks the human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn noscheck_verify(
+        &self,
+        Parameters(args): Parameters<NosCheckArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::noscheck::confirmation("verify", &ws);
+        let bound = serde_json::json!({
+            "workspace": ws, "run_id": args.run_id, "request_id": args.request_id,
+        });
+        let run = tools::noscheck::verify(self.ch(), ws, args);
+        self.gated(
+            &ctx,
+            state,
+            responses,
+            "noscheck_verify",
+            bound,
+            question,
+            run,
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Collect a workspace's telemetry into an archive on this host; the job's \
+                        `artifact` gives its path and sha256. Asks the human user to confirm \
+                        first. Returns the job.",
+        annotations(destructive_hint = false)
+    )]
+    async fn telemetry_collect(
+        &self,
+        Parameters(args): Parameters<CollectArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::telemetry::collect_confirmation(&ws, args.out_path.as_deref());
+        let bound = serde_json::json!({ "workspace": ws, "out_path": args.out_path });
+        let run = tools::telemetry::collect(self.ch(), ws, args.out_path);
+        self.gated(
+            &ctx,
+            state,
+            responses,
+            "telemetry_collect",
+            bound,
+            question,
+            run,
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Cancel a running job: it stops at its next step and its child jobs are \
+                        cancelled too; a `down` cannot be cancelled. Asks the human user to \
+                        confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn job_cancel(
+        &self,
+        Parameters(args): Parameters<JobCancelArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let question = tools::job::cancel_confirmation(&args.id);
+        let bound = serde_json::json!({ "id": args.id });
+        let run = tools::job::cancel(self.ch(), args);
+        self.gated(&ctx, state, responses, "job_cancel", bound, question, run)
+            .await
     }
 }
-
 #[tool_handler]
 impl ServerHandler for VxmcpServer {
     fn get_info(&self) -> ServerInfo {
@@ -256,11 +617,11 @@ impl ServerHandler for VxmcpServer {
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_instructions(
-                "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Read tools: \
-                 experiment_status, gateway_status, zone_list, compute_list, svc_status, \
-                 job_get, job_watch, events_subscribe. Mutating tools (each asks the user to \
-                 confirm, and returns a job to follow with job_watch): svc_down, \
-                 experiment_down. Point VXEDGE_ENDPOINT at a running vxedged \
+                "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Results are typed JSON \
+                 with enum values by name; a refusal is a tool error whose `error.reason` is an \
+                 `ErrorReason` name such as ERROR_REASON_BUSY. Start with host_capabilities and \
+                 workspace_plan; mutating tools ask the user to confirm and return a job to \
+                 follow with job_watch. Point VXEDGE_ENDPOINT at a running vxedged \
                  (unix:///path.sock) before calling any tool."
                     .to_string(),
             )

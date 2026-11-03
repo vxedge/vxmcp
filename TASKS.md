@@ -158,10 +158,8 @@ Phase 3 (`docs/ROADMAP.md`) — frontend/tooling investment, not gate-blocking. 
         only); `svc_status` `ota`/`telemetry` → `[state=1] … service not running`;
         `job_get` on an unknown id → JSON-RPC error with `vxedged`'s own `NotFound` "unknown job" message;
         `experiment_status` still matches `vxedge experiment status`.
-  - **Not wired, deliberately: `vehicle_status`.** `VehicleService.Status` exists in the
-    proto, but `vxedged` never registers a `VehicleService` (`vxedged/src/main.rs`'s
-    `add_service` list, pinned rev) — a tool would only ever return `Unimplemented`. Wire it
-    when the daemon serves it.
+  - [x] **`vehicle_status`, 2026-11-03.** This note said `vxedged` never registered a
+    `VehicleService`; it has since vxedge 0.2.0. Wired with the 0.5.0 tools (vxmcp #11).
   - [x] **`job_watch` / `events_subscribe`, 2026-10-29** — the two server-streaming RPCs
         (`JobService.Watch`, `EventService.Subscribe`). Decided: collect, then return once —
         an MCP tool call returns a single result, and this works with every client (progress

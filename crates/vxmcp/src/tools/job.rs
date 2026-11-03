@@ -1,18 +1,22 @@
 //! `JobService` tools. Every mutating RPC returns a `Job`; these are how an agent checks on one.
-//! - `job_get` — a direct 1:1 call to `JobService.Get`: one snapshot by id.
-//! - `job_watch` — a direct 1:1 call to `JobService.Watch` (server streaming). An MCP tool call
-//!   returns once, so the stream is followed until the job reaches a terminal state or a
-//!   caller-chosen timeout (default 60s, capped at 300s) passes, and the distinct steps seen
-//!   are returned in one result (`TASKS.md` #2: collect-until-terminal-or-timeout, chosen
-//!   2026-10-29). Nothing is retried or sequenced here — on a timeout the agent decides
-//!   whether to watch again.
+//! - `job_get` → `Get`: one snapshot by id.
+//! - `job_list` → `List`: jobs filtered by state, kind, run or parent.
+//! - `job_cancel` → `Cancel`, behind `crate::confirm`: cooperative, so the job stops between
+//!   steps; its child jobs are cancelled too, and a `down` is refused.
+//! - `job_watch` → `Watch` (server streaming). An MCP tool call returns once, so the stream is
+//!   followed until the job reaches a terminal state or a caller-chosen timeout (default 60s,
+//!   capped at 300s) passes, and the distinct steps seen are returned in one result (`TASKS.md`
+//!   #2). Nothing is retried or sequenced here — on a timeout the agent decides whether to
+//!   watch again.
 
 use std::time::Duration;
 
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::CallToolResult;
 use tokio_stream::{Stream, StreamExt};
 use vxedge_api::v1::job_service_client::JobServiceClient;
-use vxedge_api::v1::{GetJobRequest, Job, JobState, WatchJobRequest};
+use vxedge_api::v1::{
+    GetJobRequest, Job, JobCancelRequest, JobListRequest, JobState, WatchJobRequest,
+};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct JobGetArgs {
@@ -24,44 +28,95 @@ pub async fn get(
     channel: tonic::transport::Channel,
     args: JobGetArgs,
 ) -> anyhow::Result<CallToolResult> {
-    let mut client = JobServiceClient::new(channel);
-    let resp = client
+    let job = JobServiceClient::new(channel)
         .get(GetJobRequest { id: args.id })
         .await?
         .into_inner();
-    Ok(CallToolResult::success(vec![ContentBlock::text(render(
-        &resp,
-    ))]))
+    super::out::json(&job)
 }
 
-/// Named job states, mirroring vxedge-cli's own `state_name()` — job states are the one place
-/// the CLI already prints names rather than ordinals, so this follows it.
-fn state_name(state: i32) -> &'static str {
-    match JobState::try_from(state) {
-        Ok(JobState::Pending) => "pending",
-        Ok(JobState::Running) => "running",
-        Ok(JobState::Succeeded) => "succeeded",
-        Ok(JobState::Failed) => "failed",
-        Ok(JobState::Cancelled) => "cancelled",
-        _ => "unknown",
-    }
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
+pub struct JobListArgs {
+    /// Keep only jobs in these states: `pending`, `running`, `succeeded`, `failed`,
+    /// `cancelled`. Omitted or empty means every state.
+    #[serde(default)]
+    pub states: Vec<String>,
+    /// Keep only jobs of this kind, e.g. `experiment.up`.
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// Keep only jobs of this run.
+    #[serde(default)]
+    pub run_id: Option<String>,
+    /// Keep only the child jobs of this job.
+    #[serde(default)]
+    pub parent_job_id: Option<String>,
+    /// Page size; vxedged applies its own default and cap.
+    #[serde(default)]
+    pub page_size: Option<u32>,
+    /// `nextPageToken` from the previous page.
+    #[serde(default)]
+    pub page_token: Option<String>,
 }
 
-pub(crate) fn render(job: &Job) -> String {
-    let mut out = format!(
-        "{} {}: {} [{}%] {}",
-        job.id,
-        job.kind,
-        state_name(job.state),
-        job.progress_percent,
-        job.message
+fn job_states(names: &[String]) -> anyhow::Result<Vec<i32>> {
+    names
+        .iter()
+        .map(
+            |n| match JobState::from_str_name(&format!("JOB_STATE_{}", n.to_ascii_uppercase())) {
+                Some(JobState::Unspecified) | None => Err(super::out::ArgError(format!(
+                    "unknown job state `{n}`: use pending, running, succeeded, failed or cancelled"
+                ))
+                .into()),
+                Some(s) => Ok(s as i32),
+            },
+        )
+        .collect()
+}
+
+pub async fn list(
+    channel: tonic::transport::Channel,
+    args: JobListArgs,
+) -> anyhow::Result<CallToolResult> {
+    let states = job_states(&args.states)?;
+    let resp = JobServiceClient::new(channel)
+        .list(JobListRequest {
+            states,
+            kind: args.kind.unwrap_or_default(),
+            run: super::out::run_ref(args.run_id),
+            parent_job_id: args.parent_job_id.unwrap_or_default(),
+            page_size: args.page_size.unwrap_or_default(),
+            page_token: args.page_token.unwrap_or_default(),
+        })
+        .await?
+        .into_inner();
+    super::out::json(&resp)
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct JobCancelArgs {
+    /// The job id to cancel. You will be asked to confirm.
+    pub id: String,
+}
+
+/// The question the human sees before `job_cancel` runs. Checked against vxedged's
+/// `JobEngine::cancel`: cooperative, cascades to child jobs, refuses a `down`.
+pub fn cancel_confirmation(id: &str) -> String {
+    format!(
+        "Cancel job `{id}`: it stops at its next step and its child jobs are cancelled too, \
+         which can leave a run partly up until `down` runs. vxedged refuses to cancel a `down`. \
+         This affects anyone using this host's testbed. Confirm?"
     )
-    .trim_end()
-    .to_string();
-    if !job.error.is_empty() {
-        out.push_str(&format!("\n  error: {}", job.error));
-    }
-    out
+}
+
+pub async fn cancel(
+    channel: tonic::transport::Channel,
+    args: JobCancelArgs,
+) -> anyhow::Result<CallToolResult> {
+    let job = JobServiceClient::new(channel)
+        .cancel(JobCancelRequest { id: args.id })
+        .await?
+        .into_inner();
+    super::out::json(&job)
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -88,15 +143,12 @@ pub async fn watch(
     args: JobWatchArgs,
 ) -> anyhow::Result<CallToolResult> {
     let secs = watch_secs(args.timeout_secs);
-    let mut client = JobServiceClient::new(channel);
-    let stream = client
+    let stream = JobServiceClient::new(channel)
         .watch(WatchJobRequest { id: args.id })
         .await?
         .into_inner();
     let outcome = collect_job(stream, Duration::from_secs(secs)).await?;
-    Ok(CallToolResult::success(vec![ContentBlock::text(
-        render_watch(&outcome, secs),
-    )]))
+    super::out::json(&watch_json(&outcome, secs))
 }
 
 #[derive(Debug)]
@@ -158,36 +210,35 @@ where
     Ok(WatchOutcome { steps, last, end })
 }
 
-fn render_watch(outcome: &WatchOutcome, secs: u64) -> String {
-    let Some(last) = &outcome.last else {
-        return format!("no job updates received within {secs}s");
+/// `end` says why watching stopped: `terminal`, `timed_out` (call again to keep following),
+/// `stream_ended` before a terminal state, or `no_updates` within the timeout. `job` is the
+/// last snapshot; `steps` the distinct progress steps seen, as vxedge-cli prints them.
+fn watch_json(outcome: &WatchOutcome, secs: u64) -> serde_json::Value {
+    let end = match (&outcome.last, &outcome.end) {
+        (None, _) => "no_updates",
+        (_, WatchEnd::Terminal) => "terminal",
+        (_, WatchEnd::TimedOut) => "timed_out",
+        (_, WatchEnd::StreamEnded) => "stream_ended",
     };
-    let mut lines: Vec<String> = outcome
+    let steps: Vec<serde_json::Value> = outcome
         .steps
         .iter()
         // Same filter vxedge-cli applies: a snapshot with no message and no progress is not
         // a step worth showing.
         .filter(|j| !j.message.is_empty() || j.progress_percent > 0)
-        .map(|j| format!("[{:>3}%] {} {}", j.progress_percent, j.kind, j.message))
+        .map(|j| serde_json::json!({ "progressPercent": j.progress_percent, "message": j.message }))
         .collect();
-    match outcome.end {
-        WatchEnd::Terminal => {}
-        WatchEnd::TimedOut => lines.push(format!(
-            "still {} after {secs}s — call job_watch again to keep following it",
-            state_name(last.state)
-        )),
-        WatchEnd::StreamEnded => {
-            lines.push("stream ended before the job reached a terminal state".to_string())
-        }
-    }
-    lines.push(render(last));
-    lines.join("\n")
+    serde_json::json!({
+        "end": end,
+        "timeoutSecs": secs,
+        "steps": steps,
+        "job": outcome.last,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vxedge_api::v1::{Job, JobState};
 
     #[test]
     fn args_deserialize_from_a_bare_id_field() {
@@ -196,47 +247,22 @@ mod tests {
     }
 
     #[test]
-    fn renders_a_running_job_with_named_state_and_progress() {
-        let job = Job {
-            id: "j-42".into(),
-            kind: "gateway.up".into(),
-            state: JobState::Running as i32,
-            progress_percent: 40,
-            message: "configuring bridge".into(),
-            ..Default::default()
-        };
+    fn list_args_are_all_optional_and_states_map_by_name() {
+        let a: JobListArgs = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(a.states.is_empty());
         assert_eq!(
-            render(&job),
-            "j-42 gateway.up: running [40%] configuring bridge"
+            job_states(&["running".into(), "FAILED".into()]).unwrap(),
+            vec![JobState::Running as i32, JobState::Failed as i32]
         );
+        assert!(job_states(&["unspecified".into()]).is_err());
+        assert!(job_states(&["done".into()]).is_err());
     }
 
     #[test]
-    fn appends_the_error_line_for_a_failed_job() {
-        let job = Job {
-            id: "j-7".into(),
-            kind: "zone.up".into(),
-            state: JobState::Failed as i32,
-            progress_percent: 60,
-            message: "booting".into(),
-            error: "qemu exited 1".into(),
-            ..Default::default()
-        };
-        assert_eq!(
-            render(&job),
-            "j-7 zone.up: failed [60%] booting\n  error: qemu exited 1"
-        );
-    }
-
-    #[test]
-    fn unknown_state_ordinals_render_as_unknown() {
-        let job = Job {
-            id: "j-9".into(),
-            kind: "x".into(),
-            state: 99,
-            ..Default::default()
-        };
-        assert_eq!(render(&job), "j-9 x: unknown [0%]");
+    fn cancel_confirmation_names_the_job_and_ends_with_the_shared_host_line() {
+        let t = cancel_confirmation("job-1-7");
+        assert!(t.starts_with("Cancel job `job-1-7`"));
+        assert!(t.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }
 }
 
@@ -279,11 +305,16 @@ mod watch_tests {
         ]);
         let out = collect_job(s, Duration::from_secs(5)).await.unwrap();
         assert!(matches!(out.end, WatchEnd::Terminal));
-        assert_eq!(
-            render_watch(&out, 5),
-            "[ 10%] gateway.up bridge\n[ 60%] gateway.up vlans\n[100%] gateway.up done\n\
-             j-1 gateway.up: succeeded [100%] done"
-        );
+        let v = watch_json(&out, 5);
+        assert_eq!(v["end"], "terminal");
+        assert_eq!(v["job"]["state"], "JOB_STATE_SUCCEEDED");
+        let msgs: Vec<&str> = v["steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["message"].as_str().unwrap())
+            .collect();
+        assert_eq!(msgs, ["bridge", "vlans", "done"]);
     }
 
     #[tokio::test]
@@ -292,10 +323,11 @@ mod watch_tests {
             .chain(tokio_stream::pending());
         let out = collect_job(s, Duration::from_millis(30)).await.unwrap();
         assert!(matches!(out.end, WatchEnd::TimedOut));
-        let text = render_watch(&out, 7);
-        assert!(text.starts_with("[ 40%] gateway.up booting\n"));
-        assert!(text.contains("still running after 7s"));
-        assert!(text.ends_with("j-1 gateway.up: running [40%] booting"));
+        let v = watch_json(&out, 7);
+        assert_eq!(v["end"], "timed_out");
+        assert_eq!(v["timeoutSecs"], 7);
+        assert_eq!(v["job"]["state"], "JOB_STATE_RUNNING");
+        assert_eq!(v["steps"][0]["message"], "booting");
     }
 
     #[tokio::test]
@@ -303,9 +335,7 @@ mod watch_tests {
         let s = tokio_stream::iter(vec![Ok(snap(JobState::Running, 0, ""))]);
         let out = collect_job(s, Duration::from_secs(5)).await.unwrap();
         assert!(matches!(out.end, WatchEnd::StreamEnded));
-        assert!(
-            render_watch(&out, 5).contains("stream ended before the job reached a terminal state")
-        );
+        assert_eq!(watch_json(&out, 5)["end"], "stream_ended");
     }
 
     #[tokio::test]
@@ -313,7 +343,9 @@ mod watch_tests {
         let out = collect_job(tokio_stream::pending(), Duration::from_millis(10))
             .await
             .unwrap();
-        assert_eq!(render_watch(&out, 3), "no job updates received within 3s");
+        let v = watch_json(&out, 3);
+        assert_eq!(v["end"], "no_updates");
+        assert!(v["job"].is_null());
     }
 
     #[tokio::test]
