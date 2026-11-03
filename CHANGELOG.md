@@ -6,6 +6,14 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
+The agent surface for vxAPI 0.5.0. An agent can run a whole trial through vxmcp alone (plan, bring
+up, follow jobs, read typed status, run traffic, collect the evidence, recover, tear down),
+branching only on typed fields: every result is the RPC's response as JSON with enum values by
+name, and every refusal carries its `ErrorReason`. 29 tools, mutating ones still behind the human
+confirmation. The vxedge 0.5.0 release gate ran through this server
+([evidence](https://github.com/vxedge/vxperiments/tree/main/results/vxapi-0.5.0-gate-2026-11-04)).
 Needs `vxedged` 0.5.0 or newer.
 
 ### Added
@@ -27,7 +35,7 @@ Needs `vxedged` 0.5.0 or newer.
   `structuredContent` and as text, instead of `[state=N]` lines.
 - A refusal from `vxedged` is a tool error the model can read, carrying its gRPC code and
   `ErrorReason`, instead of a JSON-RPC internal error.
-- `vxedge-api` pinned to the 0.5.0 contract, with its `serde` feature.
+- `vxedge-api` pinned to vxedge `v0.5.0`, with its `serde` feature.
 
 ## [0.1.0] - 2026-10-29
 
