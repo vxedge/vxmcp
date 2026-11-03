@@ -4,8 +4,9 @@
 //!   declares, including where it is placed; without one, whether it runs on this host.
 //! - `svc_up` → `Up`, behind `crate::confirm`: starts the service the workspace declares, in
 //!   the active run.
-//! - `svc_down` → `Down`, behind `crate::confirm`: stops that service on the host, whichever
-//!   experiment started it, so that is exactly what its confirmation says.
+//! - `svc_down` → `Down`, behind `crate::confirm`: stops the service where the active run's
+//!   workspace places it on a node, or else the one on the host path, whichever experiment
+//!   started it. Its confirmation says exactly that.
 
 use rmcp::model::CallToolResult;
 use vxedge_api::v1::svc_service_client::SvcServiceClient;
@@ -93,8 +94,9 @@ pub struct SvcDownArgs {
 /// really does (design doc: confirmation text matches the daemon, not the RPC's name).
 pub fn down_confirmation(service_type: &str) -> String {
     format!(
-        "Stop the `{service_type}` service on this host, whichever experiment started it. This \
-         affects anyone using this host's testbed. Confirm?"
+        "Stop the `{service_type}` service on this host: where the active run places it on a \
+         node, or else on the host, whichever experiment started it. This affects anyone using \
+         this host's testbed. Confirm?"
     )
 }
 
@@ -105,7 +107,7 @@ pub async fn down(
     let job = SvcServiceClient::new(channel)
         .down(SvcDownRequest {
             service_type: args.service_type,
-            // vxedged's Down finds the placed service from the active run, not from this.
+            // Unset: vxedged's Down then looks the service up in the active run's workspace.
             experiment: None,
             run: super::out::run_ref(args.run_id),
         })
@@ -137,8 +139,9 @@ mod tests {
     fn down_confirmation_names_the_service_and_the_shared_host() {
         assert_eq!(
             down_confirmation("ota"),
-            "Stop the `ota` service on this host, whichever experiment started it. This affects \
-             anyone using this host's testbed. Confirm?"
+            "Stop the `ota` service on this host: where the active run places it on a node, or \
+             else on the host, whichever experiment started it. This affects anyone using this \
+             host's testbed. Confirm?"
         );
     }
 

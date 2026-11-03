@@ -13,7 +13,8 @@ vxedge is an open, all-software testbed for mapping 5G network slices onto zonal
 ## Tools
 
 Every result is the RPC's own response as typed JSON, in the canonical Protobuf mapping: enum
-values by name (`"state": "JOB_STATE_FAILED"`), lowerCamelCase fields. A refusal from `vxedged`
+values by name (`"state": "JOB_STATE_FAILED"`), lowerCamelCase fields, and 64-bit integers
+such as `createdUnixMs` as strings. A refusal from `vxedged`
 is a tool error the agent can read, with the typed reason:
 
 ```json

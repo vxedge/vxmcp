@@ -619,7 +619,8 @@ impl ServerHandler for VxmcpServer {
             .with_instructions(
                 "Thin, 1:1 wrapper over vxAPI — no orchestration logic. Results are typed JSON \
                  with enum values by name; a refusal is a tool error whose `error.reason` is an \
-                 `ErrorReason` name such as ERROR_REASON_BUSY. Start with host_capabilities and \
+                 `ErrorReason` name such as ERROR_REASON_BUSY. 64-bit integers such as \
+                 createdUnixMs are JSON strings, per the Protobuf JSON mapping. Start with host_capabilities and \
                  workspace_plan; mutating tools ask the user to confirm and return a job to \
                  follow with job_watch. Point VXEDGE_ENDPOINT at a running vxedged \
                  (unix:///path.sock) before calling any tool."
