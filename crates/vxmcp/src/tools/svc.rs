@@ -1,59 +1,102 @@
-//! `svc_status` — a direct 1:1 call to `SvcService.Status`. No CLI verb calls this RPC yet
-//! (`vxedge ota`/`telemetry` only wrap `Up`/`Down`), but `vxedged` serves it. Only
-//! `service_type` is sent: the daemon reads that field alone. The accepted values aren't
-//! duplicated here as a schema enum that could drift from the daemon's own list — `vxedged`
-//! validates them: since `vxedge` `a78e7dd` (vxedge PR #21) an unknown value gets
-//! `INVALID_ARGUMENT` naming the accepted ones, which reaches the caller as a JSON-RPC error.
-//! An older daemon (before that commit) instead reports an unknown type as "not running" —
-//! found in this repo's live smoke test, 2026-10-28, and fixed daemon-side, not with a second
-//! list here.
-//!
-//! `svc_down` wraps `SvcService.Down`, the first mutating tool. `vxedged`'s Down reads only
-//! `service_type` and stops that service on the host via its runtime dir, whichever experiment
-//! started it, so that is exactly what its confirmation says. It goes through
-//! `crate::confirm` first and returns the `Job` without waiting for it.
+//! `SvcService` tools, each one RPC. `service_type` is `ota` or `telemetry`; vxedged rejects any
+//! other value with `ERROR_REASON_UNKNOWN_SERVICE_TYPE`, so the list is not duplicated here.
+//! - `svc_status` → `Status`. With a workspace, vxedged reports the service the workspace
+//!   declares, including where it is placed; without one, whether it runs on this host.
+//! - `svc_up` → `Up`, behind `crate::confirm`: starts the service the workspace declares, in
+//!   the active run.
+//! - `svc_down` → `Down`, behind `crate::confirm`: stops the service where the active run's
+//!   workspace places it on a node, or else the one on the host path, whichever experiment
+//!   started it. Its confirmation says exactly that.
 
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::CallToolResult;
 use vxedge_api::v1::svc_service_client::SvcServiceClient;
-use vxedge_api::v1::{ResourceStatus, SvcDownRequest, SvcStatusRequest};
+use vxedge_api::v1::{SvcDownRequest, SvcStatusRequest, SvcUpRequest};
+
+use super::experiment::{path_ref, resolve_workspace};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct SvcStatusArgs {
-    /// Which experiment service to report on — currently `ota` or `telemetry`. `vxedged`
-    /// rejects any other value with an error naming the accepted ones.
+    /// Which experiment service to report on: `ota` or `telemetry`.
     pub service_type: String,
+    /// The experiment workspace that declares the service. Omit it to ask only whether the
+    /// service runs on this host.
+    #[serde(default)]
+    pub workspace: Option<String>,
+    /// The run, from `run_list`. Omit it to mean the only run.
+    #[serde(default)]
+    pub run_id: Option<String>,
 }
 
 pub async fn status(
     channel: tonic::transport::Channel,
     args: SvcStatusArgs,
 ) -> anyhow::Result<CallToolResult> {
-    let mut client = SvcServiceClient::new(channel);
-    let resp = client
+    let resp = SvcServiceClient::new(channel)
         .status(SvcStatusRequest {
             service_type: args.service_type,
-            experiment: None,
+            experiment: args.workspace.and_then(|w| path_ref(resolve_workspace(&w))),
+            run: super::out::run_ref(args.run_id),
         })
         .await?
         .into_inner();
-    Ok(CallToolResult::success(vec![ContentBlock::text(render(
-        &resp,
-    ))]))
+    super::out::json(&resp)
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SvcUpArgs {
+    /// Which experiment service to start: `ota` or `telemetry`. You will be asked to confirm.
+    pub service_type: String,
+    /// The experiment workspace that declares the service.
+    pub workspace: String,
+    /// The run, from `run_list`. Omit it to mean the only run.
+    #[serde(default)]
+    pub run_id: Option<String>,
+}
+
+/// The question the human sees before `svc_up` runs, for an already-resolved path.
+pub fn up_confirmation(service_type: &str, resolved_workspace: &str) -> String {
+    format!(
+        "Start the `{service_type}` service that `{resolved_workspace}` declares, in the run \
+         active on this host. vxedged refuses if no run is up or another job holds the host. \
+         This affects anyone using this host's testbed. Confirm?"
+    )
+}
+
+/// Takes the *resolved* path — the same value the confirmation was bound to.
+pub async fn up(
+    channel: tonic::transport::Channel,
+    service_type: String,
+    resolved_workspace: String,
+    run_id: Option<String>,
+) -> anyhow::Result<CallToolResult> {
+    let job = SvcServiceClient::new(channel)
+        .up(SvcUpRequest {
+            service_type,
+            experiment: path_ref(resolved_workspace),
+            run: super::out::run_ref(run_id),
+        })
+        .await?
+        .into_inner();
+    super::out::json(&job)
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct SvcDownArgs {
-    /// Which experiment service to stop on this host: currently `ota` or `telemetry`. You will
-    /// be asked to confirm.
+    /// Which experiment service to stop on this host: `ota` or `telemetry`. You will be asked
+    /// to confirm.
     pub service_type: String,
+    /// The run, from `run_list`. Omit it to mean the only run.
+    #[serde(default)]
+    pub run_id: Option<String>,
 }
 
 /// The question the human sees before `svc_down` runs. It must say what `SvcService.Down`
 /// really does (design doc: confirmation text matches the daemon, not the RPC's name).
 pub fn down_confirmation(service_type: &str) -> String {
     format!(
-        "Stop the `{service_type}` service on this host, whichever experiment started it. This \
-         affects anyone using this host's testbed. Confirm?"
+        "Stop the `{service_type}` service on this host: where the active run places it on a \
+         node, or else on the host, whichever experiment started it. This affects anyone using \
+         this host's testbed. Confirm?"
     )
 }
 
@@ -61,34 +104,28 @@ pub async fn down(
     channel: tonic::transport::Channel,
     args: SvcDownArgs,
 ) -> anyhow::Result<CallToolResult> {
-    let mut client = SvcServiceClient::new(channel);
-    let job = client
+    let job = SvcServiceClient::new(channel)
         .down(SvcDownRequest {
             service_type: args.service_type,
-            // `vxedged`'s Down ignores this field.
+            // Unset: vxedged's Down then looks the service up in the active run's workspace.
             experiment: None,
+            run: super::out::run_ref(args.run_id),
         })
         .await?
         .into_inner();
-    Ok(CallToolResult::success(vec![ContentBlock::text(
-        super::job::render(&job),
-    )]))
-}
-
-fn render(s: &ResourceStatus) -> String {
-    format!("{} [state={}] {}", s.vxid, s.state, s.detail)
+    super::out::json(&job)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vxedge_api::v1::ResourceStatus;
 
     #[test]
-    fn args_deserialize_from_a_bare_service_type_field() {
+    fn status_args_need_only_a_service_type() {
         let args: SvcStatusArgs =
             serde_json::from_value(serde_json::json!({ "service_type": "ota" })).unwrap();
         assert_eq!(args.service_type, "ota");
+        assert!(args.workspace.is_none() && args.run_id.is_none());
     }
 
     #[test]
@@ -102,19 +139,16 @@ mod tests {
     fn down_confirmation_names_the_service_and_the_shared_host() {
         assert_eq!(
             down_confirmation("ota"),
-            "Stop the `ota` service on this host, whichever experiment started it. This affects \
-             anyone using this host's testbed. Confirm?"
+            "Stop the `ota` service on this host: where the active run places it on a node, or \
+             else on the host, whichever experiment started it. This affects anyone using this \
+             host's testbed. Confirm?"
         );
     }
 
     #[test]
-    fn renders_the_single_status_line() {
-        let s = ResourceStatus {
-            vxid: "svc-ota".into(),
-            state: 1,
-            detail: "ota service not running".into(),
-            ..Default::default()
-        };
-        assert_eq!(render(&s), "svc-ota [state=1] ota service not running");
+    fn up_confirmation_names_the_service_and_the_workspace() {
+        let t = up_confirmation("telemetry", "/ws/e");
+        assert!(t.starts_with("Start the `telemetry` service that `/ws/e` declares"));
+        assert!(t.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }
 }

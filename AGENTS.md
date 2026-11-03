@@ -8,12 +8,23 @@ agent's tool-call surface instead of a terminal. Master spec: `../docs/ARCHITECT
 ## Hard rule (same one every other frontend follows)
 
 **No orchestration logic lives here.** Every MCP tool is a direct wrapper over exactly one
-vxAPI RPC (`GatewayService`/`ZoneService`/`ComputeService`/`ExperimentService`/
-`TrafficService`/`SvcService`/`JobService`/`EventService`) — never a multi-step workflow baked
+vxAPI RPC (`GatewayService`, `ZoneService`, `ComputeService`, `ExperimentService`, `VehicleService`,
+`TrafficService`, `SvcService`, `NosCheckService`, `TelemetryService`, `RunService`,
+`WorkspaceService`, `HostService`, `JobService`, `EventService`) — never a multi-step workflow baked
 into the server. If a capability needs multiple RPCs sequenced with judgment calls in between,
 that sequencing belongs to the agent calling the tools, not to a tool itself. This is the same
 rule `vxedge-cli`'s own `AGENTS.md` states for the CLI; `vxmcp` doesn't get an exception for
 being agent-facing rather than human-facing.
+
+## Results and errors: typed, for an agent to branch on
+
+`tools::out` is the one place results are shaped. Return the RPC's response with
+`out::json(&resp)`, never a hand-written string: `vxedge-api`'s `serde` feature serializes it
+in the canonical Protobuf JSON mapping, enum values by name. Route every tool body through
+`out::finish`, which turns a `tonic::Status` into a tool error (`isError: true`) carrying the
+gRPC code and the `ErrorReason` from the status's `ErrorInfo`, so the model sees it. A JSON-RPC
+error is only for this server's own faults and for an argument rejected before any RPC
+(`out::ArgError`, or `out::check_stages` before a confirmation is asked).
 
 ## Layout
 
@@ -98,7 +109,9 @@ destructive sequence (the CLI's own explicit verbs are the parity bar).
   Every text ends with `This affects anyone using this host's testbed. Confirm?`
 - A confirmed tool returns the `Job` immediately; the agent follows it with
   `job_watch`/`job_get`. One RPC per tool still holds.
-- Reference implementations: `svc_down` (plain argument) and `experiment_down` (resolved path).
+- `VxmcpServer::gated` does this for every mutating tool: it binds the ticket to the resolved
+  arguments and polls the RPC future only on `Gate::Proceed`. Reference implementations:
+  `svc_down` (plain argument) and `experiment_down` (resolved path).
 
 ## Rules
 

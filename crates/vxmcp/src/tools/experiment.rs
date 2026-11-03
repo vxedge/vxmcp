@@ -1,23 +1,19 @@
-//! `experiment_status` — the first tool, proving the wrapper pattern end to end. A direct 1:1
-//! call to `ExperimentService.Status`, the same RPC `vxedge experiment status` calls; the only
-//! difference from the CLI is *how* the workspace is addressed. The CLI resolves it from its
-//! own working directory (`vxedge_core::discover`, terraform-style); an MCP tool call has no
-//! meaningful "current directory" of its own caller, so this takes an explicit `workspace`
-//! argument instead and lets `vxedged` resolve it server-side from the absolutized path — the
-//! daemon already does this resolution for a `Source::Path` ref regardless of caller, so no
-//! client-side discovery logic needs duplicating here.
+//! `ExperimentService` tools, each one RPC. An MCP call has no meaningful working directory, so
+//! every tool takes an explicit `workspace` path, absolutized here ([`resolve_workspace`]) and
+//! resolved by `vxedged` like any `Source::Path` ref.
 //!
-//! `experiment_down` wraps `ExperimentService.Down`, all stages, behind `crate::confirm`. At the
-//! pinned vxedge rev (`e3753be`) Down stops the services the workspace declares, the active
-//! experiment's zones and the host's gateway, and refuses unless the workspace *is* the active
-//! experiment — its confirmation says exactly that. The path is resolved once
-//! ([`resolve_workspace`]) and that same string is both confirmed and sent, so a ticket can't
-//! cover a different target than the RPC acts on.
+//! - `experiment_status` → `Status`.
+//! - `experiment_up` / `experiment_down` → `Up` / `Down`, behind `crate::confirm`. The path is
+//!   resolved once and that same string is confirmed and sent, so a ticket can't cover a
+//!   different target than the RPC acts on. Down refuses unless the workspace is the experiment
+//!   active on this host (vxedge `e3753be`); its confirmation says so.
 
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::CallToolResult;
 use vxedge_api::v1::experiment_service_client::ExperimentServiceClient;
 use vxedge_api::v1::manifest_ref::Source;
-use vxedge_api::v1::{ExperimentDownRequest, ExperimentStatusRequest, ManifestRef};
+use vxedge_api::v1::{
+    ExperimentDownRequest, ExperimentStatusRequest, ExperimentUpRequest, ManifestRef,
+};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentStatusArgs {
@@ -27,11 +23,26 @@ pub struct ExperimentStatusArgs {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct ExperimentUpArgs {
+    /// Path to the experiment workspace to bring up — the directory containing its `.vxp` file.
+    /// You will be asked to confirm.
+    pub workspace: String,
+    /// Stages to run, as `vxedge experiment up --stage` spells them: `gateway`, `zones`,
+    /// `services`, `compute`, `signal-plane`. Omitted or empty means every stage.
+    #[serde(default)]
+    pub stages: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentDownArgs {
     /// Path to the experiment workspace to tear down — the directory containing its `.vxp`
     /// file. It must be the experiment active on this host; vxedged refuses anything else. You
     /// will be asked to confirm.
     pub workspace: String,
+    /// Stages to tear down, spelled as for `experiment_up`. Omitted or empty means every stage,
+    /// in reverse dependency order.
+    #[serde(default)]
+    pub stages: Vec<String>,
 }
 
 /// Absolutize a workspace path client-side so the daemon resolves it correctly regardless of
@@ -44,7 +55,8 @@ pub fn resolve_workspace(workspace: &str) -> String {
         .unwrap_or_else(|_| workspace.to_string())
 }
 
-fn path_ref(abs: String) -> Option<ManifestRef> {
+/// A `Source::Path` ref for an already-resolved workspace path.
+pub fn path_ref(abs: String) -> Option<ManifestRef> {
     Some(ManifestRef {
         source: Some(Source::Path(abs)),
         sha256: String::new(),
@@ -54,60 +66,82 @@ fn path_ref(abs: String) -> Option<ManifestRef> {
     })
 }
 
-/// The question the human sees before `experiment_down` runs, for an already-resolved path.
-/// Checked against vxedged's `ExperimentService.Down` at `e3753be` (design doc: confirmation
-/// text matches the daemon, not the RPC's name).
-pub fn down_confirmation(resolved_workspace: &str) -> String {
+/// How a confirmation names the stages a call covers.
+pub fn stage_words(stages: &[String]) -> String {
+    if stages.is_empty() {
+        "every stage".to_string()
+    } else {
+        format!("stages {}", stages.join(", "))
+    }
+}
+
+/// The question the human sees before `experiment_up` runs, for an already-resolved path.
+pub fn up_confirmation(resolved_workspace: &str, stages: &[String]) -> String {
     format!(
-        "Tear down the experiment at `{resolved_workspace}`: stops the services it declares, its \
-         zones, and this host's gateway. vxedged refuses if it isn't the experiment active on \
-         this host. This affects anyone using this host's testbed. Confirm?"
+        "Bring up the experiment at `{resolved_workspace}` ({}): provisions this host's gateway \
+         and the zones, services, compute and signal plane it declares. vxedged checks the \
+         host first and refuses if it can't run it or another job holds it. This affects \
+         anyone using this host's testbed. Confirm?",
+        stage_words(stages)
     )
+}
+
+/// The question the human sees before `experiment_down` runs, for an already-resolved path.
+/// Checked against vxedged's `ExperimentService.Down` (design doc: confirmation text matches
+/// the daemon, not the RPC's name).
+pub fn down_confirmation(resolved_workspace: &str, stages: &[String]) -> String {
+    format!(
+        "Tear down the experiment at `{resolved_workspace}` ({}): stops the services it \
+         declares, its zones, and this host's gateway. vxedged refuses if it isn't the experiment \
+         active on this host. This affects anyone using this host's testbed. Confirm?",
+        stage_words(stages)
+    )
+}
+
+pub async fn up(
+    channel: tonic::transport::Channel,
+    resolved_workspace: String,
+    stages: &[String],
+) -> anyhow::Result<CallToolResult> {
+    let stages = super::out::stages(stages)?;
+    let job = ExperimentServiceClient::new(channel)
+        .up(ExperimentUpRequest {
+            manifest: path_ref(resolved_workspace),
+            stages,
+        })
+        .await?
+        .into_inner();
+    super::out::json(&job)
 }
 
 /// Takes the *resolved* path — the same value the confirmation was bound to.
 pub async fn down(
     channel: tonic::transport::Channel,
     resolved_workspace: String,
+    stages: &[String],
 ) -> anyhow::Result<CallToolResult> {
-    let mut client = ExperimentServiceClient::new(channel);
-    let job = client
+    let stages = super::out::stages(stages)?;
+    let job = ExperimentServiceClient::new(channel)
         .down(ExperimentDownRequest {
             manifest: path_ref(resolved_workspace),
-            // Empty = all stages, in reverse dependency order.
-            stages: Vec::new(),
+            stages,
         })
         .await?
         .into_inner();
-    Ok(CallToolResult::success(vec![ContentBlock::text(
-        super::job::render(&job),
-    )]))
+    super::out::json(&job)
 }
 
 pub async fn status(
     channel: tonic::transport::Channel,
     args: ExperimentStatusArgs,
 ) -> anyhow::Result<CallToolResult> {
-    let mut client = ExperimentServiceClient::new(channel);
-    let resp = client
+    let resp = ExperimentServiceClient::new(channel)
         .status(ExperimentStatusRequest {
             manifest: path_ref(resolve_workspace(&args.workspace)),
         })
         .await?
         .into_inner();
-
-    let top = resp.status.clone().unwrap_or_default();
-    let mut lines = vec![format!("{}: {}", top.vxid, top.detail)];
-    for c in &resp.components {
-        // Same `state={}` convention vxedge-cli's own status output already uses throughout —
-        // a bare ResourceState ordinal, not yet a named string anywhere in this codebase.
-        // Matching it here rather than diverging in just one frontend.
-        lines.push(format!("  {} [state={}] {}", c.vxid, c.state, c.detail));
-    }
-
-    Ok(CallToolResult::success(vec![ContentBlock::text(
-        lines.join("\n"),
-    )]))
+    super::out::json(&resp)
 }
 
 #[cfg(test)]
@@ -119,16 +153,25 @@ mod tests {
         let args: ExperimentDownArgs =
             serde_json::from_value(serde_json::json!({ "workspace": "/tmp/exp-003-ws" })).unwrap();
         assert_eq!(args.workspace, "/tmp/exp-003-ws");
+        assert!(args.stages.is_empty());
     }
 
     #[test]
     fn down_confirmation_names_the_workspace_and_what_it_stops() {
         assert_eq!(
-            down_confirmation("/ws/exp-003-ws"),
-            "Tear down the experiment at `/ws/exp-003-ws`: stops the services it declares, its \
-             zones, and this host's gateway. vxedged refuses if it isn't the experiment active on \
-             this host. This affects anyone using this host's testbed. Confirm?"
+            down_confirmation("/ws/exp-003-ws", &[]),
+            "Tear down the experiment at `/ws/exp-003-ws` (every stage): stops the services it \
+             declares, its zones, and this host's gateway. vxedged refuses if it isn't the \
+             experiment active on this host. This affects anyone using this host's testbed. \
+             Confirm?"
         );
+    }
+
+    #[test]
+    fn up_confirmation_names_the_stages_and_ends_with_the_shared_host_line() {
+        let text = up_confirmation("/ws/e", &["gateway".into(), "zones".into()]);
+        assert!(text.starts_with("Bring up the experiment at `/ws/e` (stages gateway, zones)"));
+        assert!(text.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }
 
     #[test]
