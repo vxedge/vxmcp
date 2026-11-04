@@ -6,6 +6,17 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-04
+
+Follows vxedge 0.5.3: `run_list` and `run_get` name the rule each run's workspace identity was
+computed under, so an agent compares identities only when they share it. Older daemons leave the
+field empty.
+
+### Changed
+
+- `vxedge-api` pinned to vxedge `v0.5.3`, so a `Run` carries `workspaceIdentityAlgorithm`
+  (`vxws/2`, or `vxws/1` for a run recorded before 0.5.3).
+
 ## [0.2.1] - 2026-11-04
 
 Follows vxedge 0.5.2: `host_capabilities` now reports the GPU and answers from the same checks as
