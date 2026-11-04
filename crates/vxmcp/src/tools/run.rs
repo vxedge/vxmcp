@@ -48,4 +48,16 @@ mod tests {
         let a: RunArgs = serde_json::from_value(serde_json::json!({ "run_id": "r1" })).unwrap();
         assert_eq!(a.run_id.as_deref(), Some("r1"));
     }
+
+    /// An agent comparing two runs' workspace identities needs the rule each was computed under
+    /// (vxedge 0.5.3, `ARCHITECTURE.md` §13): the value alone is not comparable across rules.
+    #[test]
+    fn a_run_names_its_workspace_identity_algorithm() {
+        let run = vxedge_api::v1::Run {
+            workspace_identity_algorithm: "vxws/2".into(),
+            ..Default::default()
+        };
+        let v = serde_json::to_value(&run).unwrap();
+        assert_eq!(v["workspaceIdentityAlgorithm"], "vxws/2", "{v}");
+    }
 }
