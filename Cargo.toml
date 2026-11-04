@@ -6,7 +6,7 @@ members = [
 
 [workspace.package]
 publish = false
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.96"
 license = "Apache-2.0"
@@ -18,8 +18,8 @@ repository = "https://github.com/vxedge/vxmcp"
 # dependency, pinned to a commit for reproducibility rather than tracking a branch.
 # `vxedge/AGENTS.md`'s own hard rule applies here too: never hand-edit generated code, and
 # never re-derive the RPC surface — this is the one and only source of it.
-# vxedge v0.5.0. `serde`: canonical Protobuf JSON, so tool results carry enum names.
-vxedge-api = { git = "https://github.com/vxedge/vxedge", rev = "688e68fe7d725b8160610538f70747698a1dc807", features = ["serde"] }
+# vxedge v0.5.2. `serde`: canonical Protobuf JSON, so tool results carry enum names.
+vxedge-api = { git = "https://github.com/vxedge/vxedge", rev = "4626e0ea09813cd6fadf157ea89bee9c69087628", features = ["serde"] }
 
 # >=3.1.1 specifically: that's the release that shipped MRTR-state exposure to tool handlers
 # and cache-hint emission from the handler macros (checked against the crate's own release

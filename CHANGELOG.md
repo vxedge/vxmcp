@@ -6,6 +6,18 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-04
+
+Follows vxedge 0.5.2: `host_capabilities` now reports the GPU and answers from the same checks as
+`up`, `traffic_up` refuses up front with `ERROR_REASON_ENDPOINT_NOT_ON_HOST` when an endpoint is
+inside a node, and status tools answer about four times faster. Needs `vxedged` 0.5.2 or newer for
+those; older 0.5.x daemons still work.
+
+### Changed
+
+- `vxedge-api` pinned to vxedge `v0.5.2`, so results carry `HostCapabilities.gpu` and the new
+  `ErrorReason` value by name.
+
 ## [0.2.0] - 2026-11-04
 
 The agent surface for vxAPI 0.5.0. An agent can run a whole trial through vxmcp alone (plan, bring
