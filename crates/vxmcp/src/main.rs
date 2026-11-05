@@ -19,7 +19,7 @@ use rmcp::{
     },
     model::{
         CallToolResponse, CallToolResult, Implementation, ProtocolVersion, ServerCapabilities,
-        ServerInfo,
+        ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -612,8 +612,8 @@ impl VxmcpServer {
 }
 #[tool_handler]
 impl ServerHandler for VxmcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_instructions(
