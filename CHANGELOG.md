@@ -6,6 +6,11 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The toolchain moves from Rust 1.96.1 to 1.99.1 (`rust-toolchain.toml`, `rust-version` 1.99). Build, test, clippy `-D warnings`, fmt and `cargo deny` pass unchanged; no source changes were needed.
+
+
 ## [0.2.2] - 2026-11-04
 
 Follows vxedge 0.5.3: `run_list` and `run_get` name the rule each run's workspace identity was
