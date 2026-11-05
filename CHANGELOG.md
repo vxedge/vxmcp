@@ -8,6 +8,7 @@ All notable changes to this repo are documented here. Format follows
 
 ### Changed
 
+- `rmcp` 3.1.1 -> 3.9.0 (and `rmcp-macros`). 3.9.0 renames the type `get_info` returns from `ServerInfo` to `ServerConfig` (the same type, `InitializeResult`); the old name is deprecated, so vxmcp uses the new one. The update adds `sha2` 0.11 and its RustCrypto helper crates as transitive dependencies. Tools, schemas and responses are unchanged.
 - Lockfile update: the semver-compatible dependency updates `cargo update` offers (58 crates). No `Cargo.toml` change and no source change; build, test, clippy `-D warnings`, fmt and `cargo deny` pass. `rmcp` stays at 3.1.1: 3.9.0 deprecates `ServerInfo` for `ServerConfig`, which is its own change.
 - The toolchain moves from Rust 1.96.1 to 1.99.1 (`rust-toolchain.toml`, `rust-version` 1.99). Build, test, clippy `-D warnings`, fmt and `cargo deny` pass unchanged; no source changes were needed.
 
