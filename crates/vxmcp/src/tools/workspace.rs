@@ -13,8 +13,9 @@ use super::experiment::{path_ref, resolve_workspace};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct WorkspaceArgs {
-    /// Path to the experiment or vehicle workspace — the directory containing its `.vxp` file.
-    /// Relative paths are resolved against this server's own working directory.
+    /// Path to the experiment or vehicle workspace — the directory holding its documents and, for
+    /// a package, its descriptor (`vxp.yaml`, or a legacy `<name>.vxp`). Relative paths are
+    /// resolved against this server's own working directory.
     pub workspace: String,
 }
 
@@ -25,6 +26,7 @@ pub async fn plan(
     let resp = WorkspaceServiceClient::new(channel)
         .plan(WorkspacePlanRequest {
             manifest: path_ref(resolve_workspace(&args.workspace)),
+            ..Default::default()
         })
         .await?
         .into_inner();

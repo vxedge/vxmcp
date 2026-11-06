@@ -8,6 +8,13 @@ All notable changes to this repo are documented here. Format follows
 
 ### Changed
 
+- `vxedge-api` moves from vxedge v0.5.3 to v0.7.0. `experiment_up`, `vehicle_up` and
+  `workspace_plan` send the new `unlocked` field as false, so a `vxp/1` package that does not match
+  its `vxp.lock` is refused with `ERROR_REASON_LOCK_MISMATCH`, which the tool error carries; there
+  is no tool option to run unlocked yet. Run results now include the package and kernel that
+  vxedge 0.7.0 records. The workspace argument descriptions name the `vxp.yaml` descriptor (or a
+  legacy `<name>.vxp`) instead of only a `.vxp` file, and `experiment_up` and `vehicle_up` say
+  that a stale lock is refused.
 - CI uses `actions/checkout@v7`, the major this repo's other workflows already run, instead of v4.
 - `rmcp` 3.1.1 -> 3.9.0 (and `rmcp-macros`). 3.9.0 renames the type `get_info` returns from `ServerInfo` to `ServerConfig` (the same type, `InitializeResult`); the old name is deprecated, so vxmcp uses the new one. The update adds `sha2` 0.11 and its RustCrypto helper crates as transitive dependencies. Tools, schemas and responses are unchanged.
 - Lockfile update: the semver-compatible dependency updates `cargo update` offers (58 crates). No `Cargo.toml` change and no source change; build, test, clippy `-D warnings`, fmt and `cargo deny` pass. `rmcp` stays at 3.1.1: 3.9.0 deprecates `ServerInfo` for `ServerConfig`, which is its own change.
