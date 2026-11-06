@@ -14,8 +14,9 @@ pub use super::workspace::WorkspaceArgs as VehicleStatusArgs;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct VehicleStageArgs {
-    /// Path to the vehicle workspace — the directory containing its `.vxp` file. You will be
-    /// asked to confirm.
+    /// Path to the vehicle workspace — the directory holding its documents (and its `vxp.yaml`
+    /// when it is a package; one that does not match its `vxp.lock` is refused with
+    /// `ERROR_REASON_LOCK_MISMATCH`). You will be asked to confirm.
     pub workspace: String,
     /// Stages, as `vxedge vehicle up --stage` spells them: `gateway`, `zones`, `services`,
     /// `compute`, `signal-plane`. Omitted or empty means every stage.
@@ -69,6 +70,7 @@ pub async fn up(
         .up(VehicleUpRequest {
             manifest: path_ref(resolved_workspace),
             stages,
+            ..Default::default()
         })
         .await?
         .into_inner();

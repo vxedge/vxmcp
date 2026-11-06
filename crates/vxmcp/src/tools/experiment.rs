@@ -17,14 +17,17 @@ use vxedge_api::v1::{
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentStatusArgs {
-    /// Path to the experiment workspace — the directory containing its `.vxp` file. Relative
-    /// paths are resolved against this server's own working directory, not the caller's.
+    /// Path to the experiment workspace — the directory holding its documents and its descriptor
+    /// (`vxp.yaml`, or a legacy `<name>.vxp`). Relative paths are resolved against this server's
+    /// own working directory, not the caller's.
     pub workspace: String,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentUpArgs {
-    /// Path to the experiment workspace to bring up — the directory containing its `.vxp` file.
+    /// Path to the experiment workspace to bring up — the directory holding its documents and
+    /// its descriptor (`vxp.yaml`, or a legacy `<name>.vxp`). A `vxp/1` package that does not
+    /// match its `vxp.lock` is refused with `ERROR_REASON_LOCK_MISMATCH`, naming each difference.
     /// You will be asked to confirm.
     pub workspace: String,
     /// Stages to run, as `vxedge experiment up --stage` spells them: `gateway`, `zones`,
@@ -35,8 +38,8 @@ pub struct ExperimentUpArgs {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentDownArgs {
-    /// Path to the experiment workspace to tear down — the directory containing its `.vxp`
-    /// file. It must be the experiment active on this host; vxedged refuses anything else. You
+    /// Path to the experiment workspace to tear down — the directory holding its documents and
+    /// its descriptor. It must be the experiment active on this host; vxedged refuses anything else. You
     /// will be asked to confirm.
     pub workspace: String,
     /// Stages to tear down, spelled as for `experiment_up`. Omitted or empty means every stage,
@@ -108,6 +111,7 @@ pub async fn up(
         .up(ExperimentUpRequest {
             manifest: path_ref(resolved_workspace),
             stages,
+            ..Default::default()
         })
         .await?
         .into_inner();
