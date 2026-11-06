@@ -60,4 +60,28 @@ mod tests {
         let v = serde_json::to_value(&run).unwrap();
         assert_eq!(v["workspaceIdentityAlgorithm"], "vxws/2", "{v}");
     }
+
+    /// A run says which package it came from and which kernel it ran on (vxedge 0.7.0,
+    /// `ARCHITECTURE.md` §13), so an agent cites results by package digest and keeps
+    /// PREEMPT_RT and stock-kernel runs apart.
+    #[test]
+    fn a_run_names_its_package_and_kernel() {
+        let run = vxedge_api::v1::Run {
+            package: Some(vxedge_api::v1::PackageRef {
+                id: "vxedge/demo".into(),
+                version: "0.1.0".into(),
+                digest: "sha256:abc".into(),
+            }),
+            package_locked: true,
+            kernel: Some(vxedge_api::v1::Kernel {
+                release: "6.12.0-rt".into(),
+                preempt_rt: true,
+            }),
+            ..Default::default()
+        };
+        let v = serde_json::to_value(&run).unwrap();
+        assert_eq!(v["package"]["digest"], "sha256:abc", "{v}");
+        assert_eq!(v["packageLocked"], true, "{v}");
+        assert_eq!(v["kernel"]["preemptRt"], true, "{v}");
+    }
 }
