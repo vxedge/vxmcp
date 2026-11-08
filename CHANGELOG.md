@@ -6,6 +6,18 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `vxedge-api` follows vxedge v0.9.0 (`ab25853`). Tool results name the `attach` zone backend
+  (`NODE_BACKEND_ATTACH`) and its payload kind (`PAYLOAD_KIND_ATTACH_ADAPTER`), and `host_capabilities` lists
+  the `attach` part kind.
+
+### Fixed
+
+- A daemon at vxedge 0.9.0 or later no longer fails `host_capabilities`, `vehicle_status` and the other tools
+  that carry a node backend: the 0.7.0 bindings could not render the new enum value and the call ended in a
+  JSON-RPC error (`Invalid variant 6`).
+
 ## [0.2.3] - 2026-11-06
 
 Follows vxedge 0.7.0. `experiment_up` and `vehicle_up` now meet the daemon's lock check: a `vxp/1`
