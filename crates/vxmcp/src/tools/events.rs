@@ -1,7 +1,7 @@
 //! `events_subscribe` — a direct 1:1 call to `EventService.Subscribe` (server streaming). It
 //! collects what is emitted during a caller-chosen window (default 10s, capped at 60s), stopping
 //! early at 200 events, and returns them in one result — the same collect-then-return shape as
-//! `job_watch` (`TASKS.md` #2). vxedged keeps a bounded history (1,024 events), so `after_id`
+//! `job_watch`. vxedged keeps a bounded history (1,024 events), so `after_id`
 //! replays from a cursor with no gap; `lastId` in the result is the cursor for the next call. A
 //! cursor the history no longer holds is refused as `ERROR_REASON_EVENTS_LOST`: re-read status,
 //! then subscribe again.

@@ -5,8 +5,7 @@
 //!   steps; its child jobs are cancelled too, and a `down` is refused.
 //! - `job_watch` → `Watch` (server streaming). An MCP tool call returns once, so the stream is
 //!   followed until the job reaches a terminal state or a caller-chosen timeout (default 60s,
-//!   capped at 300s) passes, and the distinct steps seen are returned in one result (`TASKS.md`
-//!   #2). Nothing is retried or sequenced here — on a timeout the agent decides whether to
+//!   capped at 300s) passes, and the distinct steps seen are returned in one result. Nothing is retried or sequenced here — on a timeout the agent decides whether to
 //!   watch again.
 
 use std::time::Duration;

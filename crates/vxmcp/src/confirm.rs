@@ -1,5 +1,4 @@
-//! Human confirmation for mutating tools (`TASKS.md` #3, design in
-//! `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md`).
+//! Human confirmation for mutating tools.
 //!
 //! Every mutating tool calls [`Confirmations::gate`] before its one vxAPI RPC. Round 1 (no
 //! `requestState`) asks the human through an MCP 2026-07-28 multi-round-trip form elicitation

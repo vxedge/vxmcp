@@ -3,7 +3,7 @@
 An MCP server exposing vxAPI to AI agent tooling (Claude Code and others) — the agent-tooling
 equivalent of the `vxedge` CLI: a thin, 1:1 client over the same RPCs, addressed by an LLM
 agent's tool-call surface instead of a terminal. Master spec: `../docs/ARCHITECTURE.md` §5.1
-(frontends), §15 (phase 3, language decision). Phase 3, not gate-blocking.
+(frontends), §15 (language decision).
 
 ## Hard rule (same one every other frontend follows)
 
@@ -55,8 +55,8 @@ Connecting to `vxedged` reuses the exact same Unix-socket dance `vxedge-cli` alr
 
 ## MCP spec target: 2026-07-28, on `rmcp` >=3.1.1
 
-Decided 2026-08-06 (`docs/ROADMAP.md`, full account there — checked `rmcp`'s own release
-history before committing, not assumed). Stateless request-response, no `initialize`/
+Decided 2026-08-06, after checking `rmcp`'s own release
+history. Stateless request-response, no `initialize`/
 `initialized` handshake — `ServerHandler::get_info()` sets
 `ProtocolVersion::V_2026_07_28` explicitly. **Multi Round-Trip Requests** are the mechanism
 for a mutating tool that needs its caller to confirm before running: return
@@ -68,8 +68,7 @@ re-implement it per tool (see "Mutating tools" below).
 **The "no `initialize` handshake" claim above is specifically about *modern* clients** —
 confirmed against the spec text itself
 (`modelcontextprotocol.io/specification/2026-07-28/basic/lifecycle`), not just `rmcp`'s API
-surface, after a live test briefly looked like it contradicted this (`vxmcp/TASKS.md` #1's
-follow-up, 2026-08-06). The spec keeps `initialize` as a *legacy* (2025-11-25-and-earlier)
+surface, after a live test briefly looked like it contradicted this (2026-08-06). The spec keeps `initialize` as a *legacy* (2025-11-25-and-earlier)
 mechanism for backward compatibility; a modern client instead carries `protocolVersion` and
 `clientCapabilities` in every request's `_meta` and gets served with no session at all. Two
 things follow, both already true of `VxmcpServer`, kept true deliberately rather than by
@@ -88,8 +87,8 @@ accident:
 
 ## Mutating tools: human confirmation first, always
 
-Design: `docs/superpowers/specs/2026-10-29-mrtr-confirmation-design.md` (owner-approved
-2026-10-29). Read tools carry no question; every **mutating** tool goes through
+The owner approved this design on 2026-10-29; `crate::confirm`'s module doc records its
+decisions. Read tools carry no question; every **mutating** tool goes through
 `crate::confirm` before its one RPC, so an agent can't chain them unsupervised into a
 destructive sequence (the CLI's own explicit verbs are the parity bar).
 
@@ -126,6 +125,10 @@ destructive sequence (the CLI's own explicit verbs are the parity bar).
 
 ## Project skills
 
-`.claude/skills/`: none vendored yet — `vxedge`'s own `vxapi-protobuf-design` skill is the
-relevant one for anything touching the RPC surface this server wraps; read it from that repo
-until this one earns its own.
+`.claude/skills/`: none vendored. `vxedge`'s own `vxapi-protobuf-design` skill is the
+relevant one for anything touching the RPC surface this server wraps; read it from that repo.
+
+## Work items
+
+Work items are tracked on the maintainers' internal board; the public record of changes is
+`CHANGELOG.md`.
