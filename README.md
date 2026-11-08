@@ -136,7 +136,7 @@ the confirmation design for mutating tools, and the vxAPI dependency setup.
 
 - Site: <https://vxedge.dev>
 - Architecture: [`docs/ARCHITECTURE.md`](https://github.com/vxedge/docs/blob/main/ARCHITECTURE.md)
-- Results: [`docs/RESULTS.md`](https://github.com/vxedge/docs/blob/main/RESULTS.md) · Roadmap: [`docs/ROADMAP.md`](https://github.com/vxedge/docs/blob/main/ROADMAP.md)
+- Results: [`docs/RESULTS.md`](https://github.com/vxedge/docs/blob/main/RESULTS.md)
 - Contributing: [CONTRIBUTING](https://github.com/vxedge/.github/blob/main/CONTRIBUTING.md) · Security: [`SECURITY.md`](SECURITY.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md) · Citation: [`CITATION.cff`](CITATION.cff)
 - License: Apache-2.0 ([`LICENSE`](LICENSE))
