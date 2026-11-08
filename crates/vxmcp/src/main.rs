@@ -176,7 +176,10 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get the status of the vehicle workspace at the given path: each stage \
-                        and node, observed on the host."
+                        and node, observed on the host. A running qemu-microvm node also carries \
+                        `arch` (`x86_64`, `aarch64`) and `acceleration`: `kvm`, or `tcg` when the \
+                        guest's CPU is emulated, in which case its results are functional only and \
+                        must not be timed."
     )]
     async fn vehicle_status(
         &self,
