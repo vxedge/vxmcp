@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-08
+
+Follows vxedge 0.9.0. Against a 0.9.0 daemon, vxmcp 0.2.3 failed every tool that carries a node backend
+with a JSON-RPC error, because it could not render the new `attach` backend; 0.2.4 names it. Tools,
+schemas and responses are otherwise unchanged.
+
 ### Changed
 
 - `vxedge-api` follows vxedge v0.9.0 (`ab25853`). Tool results name the `attach` zone backend
