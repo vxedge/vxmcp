@@ -6,6 +6,17 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-08
+
+Follows vxedge 0.10.0. `vehicle_status` and the other node-status tools now show each running `qemu-microvm`
+node's `arch` (`x86_64`, `aarch64`) and `acceleration` (`kvm`, or `tcg` when the guest's CPU is emulated), so an
+agent can tell a result it may time from one it may not. `vehicle_status`'s description says so. Tools, schemas
+and responses are otherwise unchanged.
+
+### Changed
+
+- `vxedge-api` follows vxedge v0.10.0 (`e0a102c`).
+
 ## [0.2.4] - 2026-11-08
 
 Follows vxedge 0.9.0. Against a 0.9.0 daemon, vxmcp 0.2.3 failed every tool that carries a node backend
