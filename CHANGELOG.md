@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-09
+
+Follows vxedge 0.12.0. An agent can now run an experiment's declared measurements (`measure_start`, `measure_stop`,
+`measure_status`) and read the live streams: telemetry records, metric samples and entity log lines, each by cursor
+or for a short window. `vxedge-api` is pinned to `v0.12.0`; every existing tool is unchanged.
+
 ### Added
 
 - Follows vxedge 0.12.0 (`vxedge-api` pinned to `v0.12.0`). New tools for the RPCs it adds:
