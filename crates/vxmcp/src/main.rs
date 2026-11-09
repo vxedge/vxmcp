@@ -33,9 +33,11 @@ use confirm::{Confirmations, Gate};
 use tools::events::EventsSubscribeArgs;
 use tools::experiment::{ExperimentDownArgs, ExperimentStatusArgs, ExperimentUpArgs};
 use tools::job::{JobCancelArgs, JobGetArgs, JobListArgs, JobWatchArgs};
+use tools::measure::{MeasureArgs, MeasureStatusArgs};
 use tools::noscheck::NosCheckArgs;
 use tools::out::finish;
 use tools::run::RunArgs;
+use tools::stream::{LogsArgs, MetricsArgs, RecordsArgs};
 use tools::svc::{SvcDownArgs, SvcStatusArgs, SvcUpArgs};
 use tools::telemetry::CollectArgs;
 use tools::traffic::{TrafficArgs, TrafficStatusArgs};
@@ -236,6 +238,59 @@ impl VxmcpServer {
         Parameters(args): Parameters<TrafficStatusArgs>,
     ) -> Result<CallToolResult, McpError> {
         finish(tools::traffic::status(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Get each measurement a workspace declares, with its entity \
+                        (`measurements/<id>`) and kind: running, finished or failed."
+    )]
+    async fn measure_status(
+        &self,
+        Parameters(args): Parameters<MeasureStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::measure::status(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Read a workspace's telemetry records (samples, gaps, phases) from a \
+                        cursor, named by entity. `follow` listens for new ones for a window \
+                        (default 10 s, at most 60 s). At most 500 per call; `lastSeq` is the next \
+                        cursor.",
+        annotations(read_only_hint = true)
+    )]
+    async fn telemetry_records(
+        &self,
+        Parameters(args): Parameters<RecordsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::stream::records(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Collect the samples a workspace's telemetry service writes during a \
+                        window (default 10 s, at most 60 s), optionally filtered by labels. At \
+                        most 500 per call.",
+        annotations(read_only_hint = true)
+    )]
+    async fn telemetry_metrics(
+        &self,
+        Parameters(args): Parameters<MetricsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::stream::metrics(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Read the log lines a workspace's telemetry service read from each \
+                        entity's files (serial consoles, hypervisor logs, service and traffic \
+                        output), from a cursor, filtered by entity prefix and stream. `follow` \
+                        listens for a window. At most 500 per call; `lastSeq` is the next \
+                        cursor.",
+        annotations(read_only_hint = true)
+    )]
+    async fn logs_follow(
+        &self,
+        Parameters(args): Parameters<LogsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::stream::logs(self.ch(), args).await)
     }
 
     #[tool(description = "Get whether the workspace's NOS check instance runs in a run.")]
@@ -440,6 +495,60 @@ impl VxmcpServer {
         });
         let run = tools::traffic::down(self.ch(), ws, args);
         self.gated(&ctx, state, responses, "traffic_down", bound, question, run)
+            .await
+    }
+
+    #[tool(
+        description = "Start measurements a workspace declares, in a run that is up: probes \
+                        run inside the nodes. A `request_id` makes a retry return the original \
+                        job. Asks the human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn measure_start(
+        &self,
+        Parameters(args): Parameters<MeasureArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::measure::start_confirmation(&ws, &args.ids);
+        let bound = serde_json::json!({
+            "workspace": ws, "ids": args.ids, "duration_s": args.duration_s,
+            "run_id": args.run_id, "request_id": args.request_id,
+        });
+        let run = tools::measure::start(self.ch(), ws, args);
+        self.gated(
+            &ctx,
+            state,
+            responses,
+            "measure_start",
+            bound,
+            question,
+            run,
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Stop measurements a workspace declares, in a run that is up. Asks the \
+                        human user to confirm first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn measure_stop(
+        &self,
+        Parameters(args): Parameters<MeasureArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let question = tools::measure::stop_confirmation(&ws, &args.ids);
+        let bound = serde_json::json!({
+            "workspace": ws, "ids": args.ids, "run_id": args.run_id,
+        });
+        let run = tools::measure::stop(self.ch(), ws, args);
+        self.gated(&ctx, state, responses, "measure_stop", bound, question, run)
             .await
     }
 
