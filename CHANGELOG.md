@@ -6,6 +6,15 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- Follows vxedge 0.12.0 (`vxedge-api` pinned to `v0.12.0`). New tools for the RPCs it adds:
+  `measure_status`, `measure_start` and `measure_stop` (`MeasurementService`; start and stop ask
+  for confirmation), and three read tools over the live streams, `telemetry_records`
+  (`StreamRecords`), `telemetry_metrics` (`StreamMetrics`) and `logs_follow`
+  (`LogService.Follow`). Each stream tool collects for a window of up to 60 s and at most 500
+  items, and the record and log tools return `lastSeq` as the next cursor.
+
 ## [0.2.5] - 2026-11-08
 
 Follows vxedge 0.10.0. `vehicle_status` and the other node-status tools now show each running `qemu-microvm`

@@ -35,6 +35,10 @@ is a tool error the agent can read, with the typed reason:
 | `zone_list`, `compute_list` | `ZoneService.List`, `ComputeService.List` |
 | `svc_status` | `SvcService.Status` |
 | `traffic_status` | `TrafficService.Status` |
+| `measure_status` | `MeasurementService.Status` |
+| `telemetry_records` | `TelemetryService.StreamRecords`, from a cursor; `follow` collects for a short window; resumes from `lastSeq` |
+| `telemetry_metrics` | `TelemetryService.StreamMetrics`, collected for a short window |
+| `logs_follow` | `LogService.Follow`, from a cursor, by entity prefix and stream; resumes from `lastSeq` |
 | `noscheck_status` | `NosCheckService.Status` |
 | `job_get`, `job_list` | `JobService.Get`, `JobService.List` |
 | `job_watch` | `JobService.Watch`, collected until the job ends or a timeout |
@@ -48,12 +52,13 @@ is a tool error the agent can read, with the typed reason:
 | `vehicle_up`, `vehicle_down` | `VehicleService.Up`, `.Down` |
 | `svc_up`, `svc_down` | `SvcService.Up`, `.Down` |
 | `traffic_up`, `traffic_down` | `TrafficService.Up`, `.Down` |
+| `measure_start`, `measure_stop` | `MeasurementService.Start`, `.Stop` |
 | `noscheck_up`, `noscheck_verify`, `noscheck_down` | `NosCheckService.Up`, `.Verify`, `.Down` |
 | `telemetry_collect` | `TelemetryService.Collect` |
 | `job_cancel` | `JobService.Cancel` |
 
 Tools that act on a run take an optional `run_id` from `run_list`; omitted, it means the only
-run. `traffic_up` and `noscheck_verify` take a `request_id`, so a retry returns the original
+run. `traffic_up`, `measure_start` and `noscheck_verify` take a `request_id`, so a retry returns the original
 job instead of starting the work twice.
 
 Mutating tools go through the human confirmation flow described in [`AGENTS.md`](AGENTS.md):

@@ -2,7 +2,7 @@
 //! `crate::confirm` because it writes a file on the host. vxedged runs `vxtelemetry collect` as
 //! a job over what the workspace's telemetry service ingested, records the digest of every
 //! image the workspace runs, and returns the archive's path and sha256 as `Job.artifact`.
-//! `StreamMetrics` is not built, so it has no tool.
+//! The live streams are `tools::stream`'s.
 
 use rmcp::model::CallToolResult;
 use vxedge_api::v1::CollectRequest;
