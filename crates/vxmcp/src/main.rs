@@ -198,10 +198,11 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get the status of the vehicle workspace at the given path: each stage \
-                        and node, observed on the host. A running qemu-microvm node also carries \
-                        `arch` (`x86_64`, `aarch64`) and `acceleration`: `kvm`, or `tcg` when the \
-                        guest's CPU is emulated, in which case its results are functional only and \
-                        must not be timed.",
+                        and node, observed on the host. A running qemu-microvm or qemu-mcu node \
+                        also carries `arch` (`x86_64`, `aarch64`, `armv7m`) and `acceleration`: \
+                        `kvm`, or `tcg` when the guest's CPU is emulated, in which case its results \
+                        are functional only and must not be timed. A qemu-mcu node (microcontroller \
+                        firmware) is always `tcg`.",
         annotations(read_only_hint = true)
     )]
     async fn vehicle_status(
