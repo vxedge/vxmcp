@@ -6,14 +6,17 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
-### Added
+## [0.3.0] - 2026-11-10
 
-- **Resources** an agent reads without a tool call: `vxp://catalog` (the package cache),
-  `vxp://{id}@{version}` or `vxp://sha256:<hex>` (a cached package's typed descriptor), and
-  `vxresult://{campaign_id}/verdict` (a campaign's verdict). Each is one vxAPI read. An unknown
-  one is a not-found error carrying the typed refusal.
-- **Prompts** that are recipes over the tools: `reproduce_result`, `find_knee` and
-  `compare_baselines`.
+Follows vxedge 0.14.0: an agent can now run a whole campaign and read its typed verdict.
+- **Inspect** a package, without running it.
+- **Plan** its campaign, checked against this server's budgets.
+- **Start** it with one confirmation for all its trials, then **follow** it.
+- **Judge** the result and compare it with a reference.
+
+Packages, campaign verdicts and the package catalog are also resources, and three prompts are
+recipes over the tools. Every read tool now carries `readOnlyHint`. `vxedge-api` is pinned to
+`v0.14.0`. Existing tools are unchanged, apart from two new optional arguments.
 
 ### Added
 
@@ -30,8 +33,16 @@ All notable changes to this repo are documented here. Format follows
   problem's `ErrorReason`, before asking anyone. It also refuses one over this server's caps,
   `VXMCP_MAX_TRIALS` (default 100) and `VXMCP_MAX_CAMPAIGN_S` (default 28800), as
   `VXMCP_BUDGET_EXCEEDED`. `campaign_plan` reports whether a campaign fits as `vxmcpBudget`.
-- `traffic_up` takes `duration_s`, and `telemetry_collect` takes `archive_version`, the fields
-  vxedge 0.13.0 added to those requests.
+- **Resources** an agent reads without a tool call:
+  - `vxp://catalog`: the package cache;
+  - `vxp://{id}@{version}` or `vxp://sha256:<hex>`: a cached package's typed descriptor;
+  - `vxresult://{campaign_id}/verdict`: a campaign's verdict.
+
+  Each is one vxAPI read, and an unknown one is a not-found error carrying the typed refusal.
+- **Prompts** that are recipes over the tools: `reproduce_result`, `find_knee` and
+  `compare_baselines`.
+- **New arguments:** `traffic_up` takes `duration_s`, and `telemetry_collect` takes
+  `archive_version`, the fields vxedge 0.13.0 added to those requests.
 
 ### Changed
 

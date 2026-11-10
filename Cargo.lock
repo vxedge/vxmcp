@@ -1480,7 +1480,7 @@ dependencies = [
 
 [[package]]
 name = "vxmcp"
-version = "0.2.6"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "getrandom",
