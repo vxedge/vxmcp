@@ -7,7 +7,7 @@
 //!   point and per criterion.
 //! - `result_fetch` → `Fetch` (server streaming), behind `crate::confirm`: an archive's bytes,
 //!   written to a file where this server runs and checked against the digest they were asked by,
-//!   so an agent that shares no filesystem with the daemon can still re-hash and rerun a result.
+//!   so an agent that shares no filesystem with the daemon can still re-hash a result.
 
 use rmcp::model::CallToolResult;
 use sha2::Digest;
