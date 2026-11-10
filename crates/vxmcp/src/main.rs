@@ -866,9 +866,8 @@ impl VxmcpServer {
     #[tool(
         description = "Download a results archive by its `sha256:` digest into a file where this \
                         server runs, checked against that digest; returns its path, digest and \
-                        size. For re-hashing a result or rerunning it from its own workspace \
-                        when this server shares no filesystem with vxedged. Asks the human user \
-                        to confirm first.",
+                        size. For re-hashing a result when this server shares no filesystem with \
+                        vxedged. Asks the human user to confirm first.",
         annotations(destructive_hint = false)
     )]
     async fn result_fetch(

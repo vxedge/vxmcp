@@ -6,6 +6,13 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`result_fetch`'s description** said a fetched archive could be rerun when vxmcp shares no
+  filesystem with vxedged. It cannot: a campaign runs from a path or a package on the daemon's
+  host, and vxmcp has no tool that uploads a package there. The description now says re-hash
+  only.
+
 ## [0.4.1] - 2026-11-10
 
 What the done-means gate found missing when an agent runs a pulled package end to end: the
@@ -16,8 +23,8 @@ Follows vxedge 0.15.1 (`vxedge-api` pinned to `v0.15.1`). Every other tool is un
 
 - **`result_fetch`** (`ResultService.Fetch`): downloads a results archive by digest into a file
   where vxmcp runs, checks the bytes against the digest, and returns the path, digest and size.
-  An agent that shares no filesystem with vxedged can now re-hash a result and rerun it from the
-  package the archive carries. It asks the human to confirm, since it writes a file.
+  An agent that shares no filesystem with vxedged can now re-hash a result. It asks the human to
+  confirm, since it writes a file.
 
 ### Fixed
 
