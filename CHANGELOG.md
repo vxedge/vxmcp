@@ -6,6 +6,11 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-10
+
+Follows vxedge 0.16.0 (`vxedge-api` pinned to `v0.16.0`): `vehicle_status` describes the new
+`qemu-mcu` backend. Also corrects `result_fetch`'s description. No tool is added or removed.
+
 ### Changed
 
 - **Follows vxedge 0.16.0** (`vxedge-api` pinned to `v0.16.0`). Its one vxAPI change is additive:
