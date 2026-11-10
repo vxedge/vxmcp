@@ -6,6 +6,13 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Follows vxedge 0.16.0** (`vxedge-api` pinned to `v0.16.0`). Its one vxAPI change is additive:
+  `NODE_BACKEND_QEMU_MCU`, a zone node that runs microcontroller firmware. `vehicle_status` and
+  `host_capabilities` return it as they return any backend, and `vehicle_status`'s description
+  says a `qemu-mcu` node reports `arch: armv7m` and is always `tcg`, so never timed.
+
 ### Fixed
 
 - **`result_fetch`'s description** said a fetched archive could be rerun when vxmcp shares no
