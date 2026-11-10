@@ -92,6 +92,7 @@ An agent reads intent without a tool call:
 |---|---|---|
 | `vxp://catalog` | The packages in this host's cache | `PackageService.List` |
 | `vxp://{id}@{version}`, `vxp://sha256:<hex>` | A cached package's typed descriptor: parameters, metrics, criteria, campaign | `PackageService.Inspect` (by digest; an id and version are found in `List` first) |
+| `vxp://{id}@{version}/scenario` | Only that package's scenario: road, storyboard, simulator, clock, seed, actors, parameters with bounds | `PackageService.Inspect` |
 | `vxresult://{campaign_id}/verdict` | A campaign's verdict, typed per criterion | `ResultService.Verdict` |
 
 An unknown resource is a not-found error that carries the typed refusal in `data`.

@@ -6,6 +6,14 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Follows vxedge 0.15.0** (`vxedge-api` pinned to `v0.15.0`). The new resource
+  `vxp://{id}@{version}/scenario` (or `vxp://sha256:<hex>/scenario`) returns a cached package's
+  scenario typed: road, storyboard, simulator, clock, seed, actors, entities, and storyboard
+  parameters with bounds. `package_inspect` and the package resource carry it too, and
+  `host_capabilities` lists the simulators on the host.
+
 ## [0.3.0] - 2026-11-10
 
 Follows vxedge 0.14.0: an agent can now run a whole campaign and read its typed verdict.
