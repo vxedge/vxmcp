@@ -6,6 +6,21 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`result_fetch`** (`ResultService.Fetch`): downloads a results archive by digest into a file
+  where vxmcp runs, checks the bytes against the digest, and returns the path, digest and size.
+  An agent that shares no filesystem with vxedged can now re-hash a result and rerun it from the
+  package the archive carries. It asks the human to confirm, since it writes a file.
+
+### Fixed
+
+- **`campaign_plan` and `campaign_start` on a pulled package.** Both took a path only, so a
+  package pulled by digest could not be planned or run through vxmcp. They now take
+  `sha256:<hex>` too, a package in this host's cache, as `package_inspect` does.
+
+Both found by the done-means gate (X8.4).
+
 ## [0.4.0] - 2026-11-10
 
 Follows vxedge 0.15.0: a package's scenario is readable as a resource, and the package and host

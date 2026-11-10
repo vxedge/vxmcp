@@ -30,12 +30,14 @@ rmcp = { version = "3.1.1", features = ["transport-io"] }
 tonic = "0.14"
 # Reads `ErrorInfo` from a refusal, so a tool error carries vxedged's typed `ErrorReason`.
 tonic-types = "0.14"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std", "io-util", "fs", "time"] }
 # Already in the tree via tonic; declared directly for `StreamExt::next` over the two
 # server-streaming RPCs (`JobService.Watch`, `EventService.Subscribe`).
 tokio-stream = "0.1"
 # Already in the tree; the CSPRNG behind confirmation tickets (`crate::confirm`).
 getrandom = "0.4"
+# Already in the tree; `result_fetch` checks the bytes it wrote against the archive's digest.
+sha2 = "0.11"
 tower = "0.5"
 hyper-util = "0.1"
 schemars = "1"
