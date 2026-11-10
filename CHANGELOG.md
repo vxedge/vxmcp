@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
+Follows vxedge 0.15.0: a package's scenario is readable as a resource, and the package and host
+tools carry the scenario and the host's simulators. `vxedge-api` is pinned to `v0.15.0`. Every
+tool is unchanged.
+
 ### Added
 
 - **Follows vxedge 0.15.0** (`vxedge-api` pinned to `v0.15.0`). The new resource
