@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-10
+
+What the done-means gate found missing when an agent runs a pulled package end to end: the
+campaign tools now take a cached package's digest, and `result_fetch` downloads an archive.
+Follows vxedge 0.15.1 (`vxedge-api` pinned to `v0.15.1`). Every other tool is unchanged.
+
 ### Added
 
 - **`result_fetch`** (`ResultService.Fetch`): downloads a results archive by digest into a file
