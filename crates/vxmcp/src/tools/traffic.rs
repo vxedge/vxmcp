@@ -35,6 +35,10 @@ pub struct TrafficArgs {
     /// original job instead of starting the load again.
     #[serde(default)]
     pub request_id: Option<String>,
+    /// `traffic_up` only: how long each generator runs, in seconds. Omitted means the
+    /// experiment's `method.duration_s`.
+    #[serde(default)]
+    pub duration_s: Option<u32>,
 }
 
 fn profile_words(profiles: &[String]) -> String {
@@ -90,6 +94,7 @@ pub async fn up(
             profiles: args.profiles,
             run: super::out::run_ref(args.run_id),
             request_id: args.request_id.unwrap_or_default(),
+            duration_s: args.duration_s.unwrap_or(0),
         })
         .await?
         .into_inner();

@@ -6,6 +6,28 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Follows vxedge 0.14.0** (`vxedge-api` pinned to `v0.14.0`), with tools for the services it
+  adds:
+  - **Packages:** `package_inspect` and `package_list`, and `package_pull`, which asks for
+    confirmation.
+  - **Campaigns:** `campaign_plan`, `campaign_get`, `campaign_list` and `campaign_watch`, and
+    `campaign_start`, which asks once per campaign. Its confirmation names the trial count,
+    points, repetitions, estimated minutes and profile, read from `Plan`.
+  - **Results:** `result_list`, `result_get`, `result_verdict` and `result_compare`. An agent
+    branches on a verdict's typed `outcome` per criterion.
+- **Campaign budgets:** `campaign_start` refuses a campaign whose plan has a problem, with that
+  problem's `ErrorReason`, before asking anyone. It also refuses one over this server's caps,
+  `VXMCP_MAX_TRIALS` (default 100) and `VXMCP_MAX_CAMPAIGN_S` (default 28800), as
+  `VXMCP_BUDGET_EXCEEDED`. `campaign_plan` reports whether a campaign fits as `vxmcpBudget`.
+- `traffic_up` takes `duration_s`, and `telemetry_collect` takes `archive_version`, the fields
+  vxedge 0.13.0 added to those requests.
+
+### Changed
+
+- Every read tool carries `readOnlyHint`, so a client can run them without asking.
+
 ## [0.2.6] - 2026-11-09
 
 Follows vxedge 0.12.0. An agent can now run an experiment's declared measurements (`measure_start`, `measure_stop`,

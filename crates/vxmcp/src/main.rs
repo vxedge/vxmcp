@@ -30,12 +30,17 @@ mod confirm;
 mod tools;
 
 use confirm::{Confirmations, Gate};
+use tools::campaign::{
+    Budget, CampaignIdArgs, CampaignPlanArgs, CampaignStartArgs, CampaignWatchArgs,
+};
 use tools::events::EventsSubscribeArgs;
 use tools::experiment::{ExperimentDownArgs, ExperimentStatusArgs, ExperimentUpArgs};
 use tools::job::{JobCancelArgs, JobGetArgs, JobListArgs, JobWatchArgs};
 use tools::measure::{MeasureArgs, MeasureStatusArgs};
 use tools::noscheck::NosCheckArgs;
 use tools::out::finish;
+use tools::package::{PackageInspectArgs, PackagePullArgs};
+use tools::result::{ResultCompareArgs, ResultGetArgs, ResultListArgs, ResultVerdictArgs};
 use tools::run::RunArgs;
 use tools::stream::{LogsArgs, MetricsArgs, RecordsArgs};
 use tools::svc::{SvcDownArgs, SvcStatusArgs, SvcUpArgs};
@@ -134,7 +139,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "What this host can run: the zone backends and part kinds available, and \
-                        how many runs it holds at once. Call before choosing a workspace."
+                        how many runs it holds at once. Call before choosing a workspace.",
+        annotations(read_only_hint = true)
     )]
     async fn host_capabilities(&self) -> Result<CallToolResult, McpError> {
         finish(tools::workspace::capabilities(self.ch()).await)
@@ -143,7 +149,8 @@ impl VxmcpServer {
     #[tool(
         description = "Plan a workspace without changing anything: the checks experiment_up and \
                         vehicle_up make first, each with a typed reason if it fails, and the \
-                        nodes they would provision."
+                        nodes they would provision.",
+        annotations(read_only_hint = true)
     )]
     async fn workspace_plan(
         &self,
@@ -152,12 +159,18 @@ impl VxmcpServer {
         finish(tools::workspace::plan(self.ch(), args).await)
     }
 
-    #[tool(description = "List the runs on this host: each run's id, workspace and start time.")]
+    #[tool(
+        description = "List the runs on this host: each run's id, workspace and start time.",
+        annotations(read_only_hint = true)
+    )]
     async fn run_list(&self) -> Result<CallToolResult, McpError> {
         finish(tools::run::list(self.ch()).await)
     }
 
-    #[tool(description = "Get one run by id; omit the id to mean the only run on this host.")]
+    #[tool(
+        description = "Get one run by id; omit the id to mean the only run on this host.",
+        annotations(read_only_hint = true)
+    )]
     async fn run_get(
         &self,
         Parameters(args): Parameters<RunArgs>,
@@ -167,7 +180,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get the status of the experiment workspace at the given path: a \
-                        top-level status plus each component's typed state."
+                        top-level status plus each component's typed state.",
+        annotations(read_only_hint = true)
     )]
     async fn experiment_status(
         &self,
@@ -181,7 +195,8 @@ impl VxmcpServer {
                         and node, observed on the host. A running qemu-microvm node also carries \
                         `arch` (`x86_64`, `aarch64`) and `acceleration`: `kvm`, or `tcg` when the \
                         guest's CPU is emulated, in which case its results are functional only and \
-                        must not be timed."
+                        must not be timed.",
+        annotations(read_only_hint = true)
     )]
     async fn vehicle_status(
         &self,
@@ -192,13 +207,17 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get the gateway's observed status: slices, link impairments, ingress \
-                        filters and tunnels as found on the kernel."
+                        filters and tunnels as found on the kernel.",
+        annotations(read_only_hint = true)
     )]
     async fn gateway_status(&self) -> Result<CallToolResult, McpError> {
         finish(tools::gateway::status(self.ch()).await)
     }
 
-    #[tool(description = "List the zones a run declares, each with its observed, typed status.")]
+    #[tool(
+        description = "List the zones a run declares, each with its observed, typed status.",
+        annotations(read_only_hint = true)
+    )]
     async fn zone_list(
         &self,
         Parameters(args): Parameters<RunArgs>,
@@ -208,7 +227,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "List the compute nodes a run declares, each with its observed, typed \
-                        status."
+                        status.",
+        annotations(read_only_hint = true)
     )]
     async fn compute_list(
         &self,
@@ -220,7 +240,8 @@ impl VxmcpServer {
     #[tool(
         description = "Get an experiment service's status (`ota` or `telemetry`). With a \
                         workspace, the service it declares and where it is placed; without one, \
-                        whether it runs on this host."
+                        whether it runs on this host.",
+        annotations(read_only_hint = true)
     )]
     async fn svc_status(
         &self,
@@ -231,7 +252,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get each traffic profile's state in a run: running, finished or failed, \
-                        from the exit code its load generator left."
+                        from the exit code its load generator left.",
+        annotations(read_only_hint = true)
     )]
     async fn traffic_status(
         &self,
@@ -242,7 +264,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get each measurement a workspace declares, with its entity \
-                        (`measurements/<id>`) and kind: running, finished or failed."
+                        (`measurements/<id>`) and kind: running, finished or failed.",
+        annotations(read_only_hint = true)
     )]
     async fn measure_status(
         &self,
@@ -293,7 +316,133 @@ impl VxmcpServer {
         finish(tools::stream::logs(self.ch(), args).await)
     }
 
-    #[tool(description = "Get whether the workspace's NOS check instance runs in a run.")]
+    #[tool(
+        description = "Inspect a package without running it: its typed descriptor, parameters \
+                        with bounds, metrics, criteria, campaign, measurements and entities. \
+                        `package` is a folder or packed `.vxp` on this host, or the \
+                        `sha256:<hex>` digest of one in this host's cache.",
+        annotations(read_only_hint = true)
+    )]
+    async fn package_inspect(
+        &self,
+        Parameters(args): Parameters<PackageInspectArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::package::inspect(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "List the packages in this host's cache, each by digest, id and version.",
+        annotations(read_only_hint = true)
+    )]
+    async fn package_list(&self) -> Result<CallToolResult, McpError> {
+        finish(tools::package::list(self.ch()).await)
+    }
+
+    #[tool(
+        description = "Plan a workspace's campaign without running anything: the trials it \
+                        runs (every sweep point and every arm, by repetition), the estimated \
+                        wall time, every typed problem, and `vxmcpBudget`, whether it fits this \
+                        server's caps on trials and wall time. Call before campaign_start.",
+        annotations(read_only_hint = true)
+    )]
+    async fn campaign_plan(
+        &self,
+        Parameters(args): Parameters<CampaignPlanArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        finish(tools::campaign::plan(self.ch(), ws, args, Budget::from_env()).await)
+    }
+
+    #[tool(
+        description = "Get a campaign by id: its state, each trial's state, phase and archive \
+                        digest, and `verdict` (VERDICT_OUTCOME_PASS, _FAIL, _INCONCLUSIVE) once \
+                        it finished.",
+        annotations(read_only_hint = true)
+    )]
+    async fn campaign_get(
+        &self,
+        Parameters(args): Parameters<CampaignIdArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::campaign::get(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "List the campaigns on this host, oldest first, each with its trials.",
+        annotations(read_only_hint = true)
+    )]
+    async fn campaign_list(&self) -> Result<CallToolResult, McpError> {
+        finish(tools::campaign::list(self.ch()).await)
+    }
+
+    #[tool(
+        description = "Follow a campaign until it ends or the timeout passes (default 60 s, at \
+                        most 300 s). `end` is `finished`, `timed_out` or `stream_ended`; \
+                        `status` is the last state seen. On `timed_out`, call again.",
+        annotations(read_only_hint = true)
+    )]
+    async fn campaign_watch(
+        &self,
+        Parameters(args): Parameters<CampaignWatchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::campaign::watch(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "List results archives by digest, described from their own metadata: a \
+                        campaign's trial archives, and those under a workspace's `results/`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn result_list(
+        &self,
+        Parameters(args): Parameters<ResultListArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::result::list(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Get one results archive by its `sha256:` digest: experiment, package and \
+                        lock state, the trial it is, collection time and versions.",
+        annotations(read_only_hint = true)
+    )]
+    async fn result_get(
+        &self,
+        Parameters(args): Parameters<ResultGetArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::result::get(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Judge a campaign's experiment criteria over its archives, read from the \
+                        archives each time: `outcome` and, per criterion, its outcome, the \
+                        operand values, every metric read with the trials and values behind it, \
+                        and `why` when it is inconclusive. Branch on `outcome`, never on prose.",
+        annotations(read_only_hint = true)
+    )]
+    async fn result_verdict(
+        &self,
+        Parameters(args): Parameters<ResultVerdictArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::result::verdict(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Compare a campaign with a reference campaign: per metric at each point, \
+                        both medians and IQRs and whether the difference is within the \
+                        reference's IQR (`within` counts them); per criterion, the outcome on \
+                        both sides.",
+        annotations(read_only_hint = true)
+    )]
+    async fn result_compare(
+        &self,
+        Parameters(args): Parameters<ResultCompareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::result::compare(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "Get whether the workspace's NOS check instance runs in a run.",
+        annotations(read_only_hint = true)
+    )]
     async fn noscheck_status(
         &self,
         Parameters(args): Parameters<NosCheckArgs>,
@@ -303,7 +452,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "Get one snapshot of a job by id: kind, state, progress, message, typed \
-                        failure reason and any artifact. Every mutating tool returns a job."
+                        failure reason and any artifact. Every mutating tool returns a job.",
+        annotations(read_only_hint = true)
     )]
     async fn job_get(
         &self,
@@ -314,7 +464,8 @@ impl VxmcpServer {
 
     #[tool(
         description = "List jobs, filtered by state, kind, run or parent job, newest first, in \
-                        pages."
+                        pages.",
+        annotations(read_only_hint = true)
     )]
     async fn job_list(
         &self,
@@ -326,7 +477,8 @@ impl VxmcpServer {
     #[tool(
         description = "Follow a job by id until it succeeds, fails or is cancelled, or until \
                         the timeout passes (default 60s, max 300s). `end` says which; on \
-                        `timed_out`, call again to keep watching."
+                        `timed_out`, call again to keep watching.",
+        annotations(read_only_hint = true)
     )]
     async fn job_watch(
         &self,
@@ -338,7 +490,8 @@ impl VxmcpServer {
     #[tool(
         description = "Collect daemon events during a short window (default 10s, max 60s), \
                         optionally filtered by kind or family. Pass the previous result's \
-                        `lastId` as `after_id` to resume with no gap."
+                        `lastId` as `after_id` to resume with no gap.",
+        annotations(read_only_hint = true)
     )]
     async fn events_subscribe(
         &self,
@@ -469,7 +622,7 @@ impl VxmcpServer {
         let question = tools::traffic::up_confirmation(&ws, &args.profiles);
         let bound = serde_json::json!({
             "workspace": ws, "profiles": args.profiles, "run_id": args.run_id,
-            "request_id": args.request_id,
+            "request_id": args.request_id, "duration_s": args.duration_s,
         });
         let run = tools::traffic::up(self.ch(), ws, args);
         self.gated(&ctx, state, responses, "traffic_up", bound, question, run)
@@ -688,8 +841,10 @@ impl VxmcpServer {
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
         let question = tools::telemetry::collect_confirmation(&ws, args.out_path.as_deref());
-        let bound = serde_json::json!({ "workspace": ws, "out_path": args.out_path });
-        let run = tools::telemetry::collect(self.ch(), ws, args.out_path);
+        let bound = serde_json::json!({
+            "workspace": ws, "out_path": args.out_path, "archive_version": args.archive_version,
+        });
+        let run = tools::telemetry::collect(self.ch(), ws, args.out_path, args.archive_version);
         self.gated(
             &ctx,
             state,
@@ -700,6 +855,70 @@ impl VxmcpServer {
             run,
         )
         .await
+    }
+
+    #[tool(
+        description = "Run a workspace's campaign: every trial provisioned, warmed up, measured, \
+                        archived and torn down on its own. Plans it first and refuses a campaign \
+                        with plan problems or over this server's budgets; otherwise asks the \
+                        human user to confirm once, naming the trial count and wall time. \
+                        Returns the campaign job; follow it with campaign_watch.",
+        annotations(destructive_hint = true)
+    )]
+    async fn campaign_start(
+        &self,
+        Parameters(args): Parameters<CampaignStartArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let ws = tools::experiment::resolve_workspace(&args.workspace);
+        let plan =
+            match tools::campaign::fetch_plan(self.ch(), ws.clone(), args.profile.clone()).await {
+                Ok(plan) => plan,
+                Err(status) => return Ok(tools::out::rpc_error(&status).into()),
+            };
+        if let Some(refused) = tools::campaign::refusal(&plan, &Budget::from_env()) {
+            return Ok(refused.into());
+        }
+        let question = tools::campaign::start_confirmation(&ws, &plan);
+        let bound = serde_json::json!({
+            "workspace": ws, "profile": args.profile, "request_id": args.request_id,
+            "caller": args.caller, "unlocked": args.unlocked, "trials": plan.trials.len(),
+        });
+        let run = tools::campaign::start(self.ch(), ws, args);
+        self.gated(
+            &ctx,
+            state,
+            responses,
+            "campaign_start",
+            bound,
+            question,
+            run,
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Pull a package by `<repository>@sha256:<hex>` into this host's package \
+                        cache, checked against its digest and the host's trust policy. Asks the \
+                        human user to confirm first. Returns the job.",
+        annotations(destructive_hint = false)
+    )]
+    async fn package_pull(
+        &self,
+        Parameters(args): Parameters<PackagePullArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let question = tools::package::pull_confirmation(&args.reference);
+        let bound = serde_json::json!({
+            "reference": args.reference, "request_id": args.request_id,
+        });
+        let run = tools::package::pull(self.ch(), args);
+        self.gated(&ctx, state, responses, "package_pull", bound, question, run)
+            .await
     }
 
     #[tool(

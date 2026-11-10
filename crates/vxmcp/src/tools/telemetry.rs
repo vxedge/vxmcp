@@ -18,6 +18,10 @@ pub struct CollectArgs {
     /// means `<workspace>/results/<experiment id>-<unix ms>.zip`.
     #[serde(default)]
     pub out_path: Option<String>,
+    /// The archive format: 2 (`vxarchive/2`, with entities, phases and logs) or 1. Omitted
+    /// leaves it to vxtelemetry's default.
+    #[serde(default)]
+    pub archive_version: Option<u32>,
 }
 
 /// The question the human sees before `telemetry_collect` runs, for an already-resolved path.
@@ -40,11 +44,13 @@ pub async fn collect(
     channel: tonic::transport::Channel,
     resolved_workspace: String,
     out_path: Option<String>,
+    archive_version: Option<u32>,
 ) -> anyhow::Result<CallToolResult> {
     let job = TelemetryServiceClient::new(channel)
         .collect(CollectRequest {
             manifest: path_ref(resolved_workspace),
             out_path: out_path.unwrap_or_default(),
+            archive_version: archive_version.unwrap_or(0),
         })
         .await?
         .into_inner();

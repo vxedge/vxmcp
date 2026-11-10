@@ -43,6 +43,12 @@ is a tool error the agent can read, with the typed reason:
 | `job_get`, `job_list` | `JobService.Get`, `JobService.List` |
 | `job_watch` | `JobService.Watch`, collected until the job ends or a timeout |
 | `events_subscribe` | `EventService.Subscribe`, collected for a short window; resumes from `lastId` |
+| `package_inspect`, `package_list` | `PackageService.Inspect` (a folder, a packed `.vxp`, or a cached package's digest), `.List` |
+| `campaign_plan` | `CampaignService.Plan`, plus `vxmcpBudget`: whether it fits this server's caps |
+| `campaign_get`, `campaign_list` | `CampaignService.Get`, `.List` |
+| `campaign_watch` | `CampaignService.Watch`, collected until the campaign ends or a timeout |
+| `result_list`, `result_get` | `ResultService.List`, `.Get` |
+| `result_verdict`, `result_compare` | `ResultService.Verdict`, `.Compare` |
 
 **Mutating tools**, each asking the user to confirm first and returning a job
 
@@ -55,11 +61,21 @@ is a tool error the agent can read, with the typed reason:
 | `measure_start`, `measure_stop` | `MeasurementService.Start`, `.Stop` |
 | `noscheck_up`, `noscheck_verify`, `noscheck_down` | `NosCheckService.Up`, `.Verify`, `.Down` |
 | `telemetry_collect` | `TelemetryService.Collect` |
+| `campaign_start` | `CampaignService.Start`, after `Plan`: one confirmation per campaign |
+| `package_pull` | `PackageService.Pull` |
 | `job_cancel` | `JobService.Cancel` |
 
 Tools that act on a run take an optional `run_id` from `run_list`; omitted, it means the only
-run. `traffic_up`, `measure_start` and `noscheck_verify` take a `request_id`, so a retry returns the original
-job instead of starting the work twice.
+run. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
+`request_id`, so a retry returns the original job instead of starting the work twice (a retried
+campaign resumes and skips the trials already archived). Every read tool carries `readOnlyHint`.
+
+**Campaign budgets.** `campaign_start` reads the campaign's `Plan` first. It refuses a campaign
+with a plan problem, with that problem's `ErrorReason`, before anyone is asked. It also refuses
+one larger than this server allows, with `"reason": "VXMCP_BUDGET_EXCEEDED"`: more trials than
+`VXMCP_MAX_TRIALS` (default 100), or an estimated wall time above `VXMCP_MAX_CAMPAIGN_S` (default
+28800). Otherwise the confirmation names the trial count, the points and repetitions, the
+estimated minutes and the profile, once for the whole campaign.
 
 Mutating tools go through the human confirmation flow described in [`AGENTS.md`](AGENTS.md):
 the server answers the first call with a form elicitation, and runs the RPC only when the user
