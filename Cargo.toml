@@ -18,8 +18,8 @@ repository = "https://github.com/vxedge/vxmcp"
 # dependency, pinned to a commit for reproducibility rather than tracking a branch.
 # `vxedge/AGENTS.md`'s own hard rule applies here too: never hand-edit generated code, and
 # never re-derive the RPC surface — this is the one and only source of it.
-# vxedge v0.15.0. `serde`: canonical Protobuf JSON, so tool results carry enum names.
-vxedge-api = { git = "https://github.com/vxedge/vxedge", rev = "4f85ccd9578ed1f20759fda68d8603e68e54e0d9", features = ["serde"] }
+# vxedge v0.15.1. `serde`: canonical Protobuf JSON, so tool results carry enum names.
+vxedge-api = { git = "https://github.com/vxedge/vxedge", rev = "4f244549c2197cf478af56224358f8e5c8049499", features = ["serde"] }
 
 # >=3.1.1 specifically: that's the release that shipped MRTR-state exposure to tool handlers
 # and cache-hint emission from the handler macros (checked against the crate's own release
@@ -30,12 +30,14 @@ rmcp = { version = "3.1.1", features = ["transport-io"] }
 tonic = "0.14"
 # Reads `ErrorInfo` from a refusal, so a tool error carries vxedged's typed `ErrorReason`.
 tonic-types = "0.14"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "io-std", "io-util", "fs", "time"] }
 # Already in the tree via tonic; declared directly for `StreamExt::next` over the two
 # server-streaming RPCs (`JobService.Watch`, `EventService.Subscribe`).
 tokio-stream = "0.1"
 # Already in the tree; the CSPRNG behind confirmation tickets (`crate::confirm`).
 getrandom = "0.4"
+# Already in the tree; `result_fetch` checks the bytes it wrote against the archive's digest.
+sha2 = "0.11"
 tower = "0.5"
 hyper-util = "0.1"
 schemars = "1"

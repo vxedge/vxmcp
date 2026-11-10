@@ -24,11 +24,12 @@ use vxedge_api::v1::{
     CampaignStartRequest, CampaignState, CampaignStatus, CampaignWatchRequest, ErrorReason,
 };
 
-use super::experiment::path_ref;
+use super::package::package_ref;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct CampaignPlanArgs {
-    /// Path to the experiment workspace whose `campaign` block to expand.
+    /// Path to the experiment workspace whose `campaign` block to expand, or `sha256:<hex>`: a
+    /// package in this host's cache (`package_list`, `package_pull`).
     pub workspace: String,
     /// A profile the campaign declares, such as `quick`. Omitted means none.
     #[serde(default)]
@@ -37,8 +38,8 @@ pub struct CampaignPlanArgs {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct CampaignStartArgs {
-    /// Path to the experiment workspace. You will be asked to confirm once for the whole
-    /// campaign.
+    /// Path to the experiment workspace, or `sha256:<hex>`: a package in this host's cache. You
+    /// will be asked to confirm once for the whole campaign.
     pub workspace: String,
     #[serde(default)]
     pub profile: Option<String>,
@@ -122,7 +123,7 @@ pub async fn fetch_plan(
 ) -> Result<CampaignPlan, tonic::Status> {
     Ok(CampaignServiceClient::new(channel)
         .plan(CampaignPlanRequest {
-            manifest: path_ref(resolved_workspace),
+            manifest: package_ref(&resolved_workspace),
             profile: profile.unwrap_or_default(),
         })
         .await?
@@ -206,7 +207,7 @@ pub async fn start(
     };
     let job = CampaignServiceClient::new(channel)
         .start(CampaignStartRequest {
-            manifest: path_ref(resolved_workspace),
+            manifest: package_ref(&resolved_workspace),
             profile: args.profile.unwrap_or_default(),
             request_id: args.request_id.unwrap_or_default(),
             caller,

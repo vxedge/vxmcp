@@ -44,7 +44,9 @@ use tools::measure::{MeasureArgs, MeasureStatusArgs};
 use tools::noscheck::NosCheckArgs;
 use tools::out::finish;
 use tools::package::{PackageInspectArgs, PackagePullArgs};
-use tools::result::{ResultCompareArgs, ResultGetArgs, ResultListArgs, ResultVerdictArgs};
+use tools::result::{
+    ResultCompareArgs, ResultFetchArgs, ResultGetArgs, ResultListArgs, ResultVerdictArgs,
+};
 use tools::run::RunArgs;
 use tools::stream::{LogsArgs, MetricsArgs, RecordsArgs};
 use tools::svc::{SvcDownArgs, SvcStatusArgs, SvcUpArgs};
@@ -859,6 +861,29 @@ impl VxmcpServer {
             run,
         )
         .await
+    }
+
+    #[tool(
+        description = "Download a results archive by its `sha256:` digest into a file where this \
+                        server runs, checked against that digest; returns its path, digest and \
+                        size. For re-hashing a result or rerunning it from its own workspace \
+                        when this server shares no filesystem with vxedged. Asks the human user \
+                        to confirm first.",
+        annotations(destructive_hint = false)
+    )]
+    async fn result_fetch(
+        &self,
+        Parameters(args): Parameters<ResultFetchArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let path = tools::result::fetch_path(&args.out_path);
+        let question = tools::result::fetch_confirmation(&args.digest, &path);
+        let bound = serde_json::json!({ "digest": args.digest, "out_path": path });
+        let run = tools::result::fetch(self.ch(), args.digest, path);
+        self.gated(&ctx, state, responses, "result_fetch", bound, question, run)
+            .await
     }
 
     #[tool(

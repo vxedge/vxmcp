@@ -65,6 +65,11 @@ is a tool error the agent can read, with the typed reason:
 | `package_pull` | `PackageService.Pull` |
 | `job_cancel` | `JobService.Cancel` |
 
+`result_fetch` (`ResultService.Fetch`) asks too, since it writes a file where vxmcp runs, and
+returns that file's path, digest and size rather than a job: the archive's bytes, checked against
+the digest they were asked by. The campaign tools take a workspace path or a cached package's
+`sha256:<hex>`, as `package_inspect` does.
+
 Tools that act on a run take an optional `run_id` from `run_list`; omitted, it means the only
 run. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
 `request_id`, so a retry returns the original job instead of starting the work twice (a retried
