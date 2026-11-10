@@ -3,6 +3,7 @@
 //! a live `rmcp` server around it (`main.rs`'s tool methods stay a thin dispatch to these).
 //! `out` holds what every tool returns: typed JSON, and refusals with their `ErrorReason`.
 
+pub mod campaign;
 pub mod compute;
 pub mod events;
 pub mod experiment;
@@ -11,6 +12,8 @@ pub mod job;
 pub mod measure;
 pub mod noscheck;
 pub mod out;
+pub mod package;
+pub mod result;
 pub mod run;
 pub mod stream;
 pub mod svc;
