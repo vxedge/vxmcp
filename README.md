@@ -84,6 +84,25 @@ gets an error, never a silent run. Follow the returned job with `job_watch`. The
 state of this frontend is `frontend.mcp` in
 [`docs/FACTS.md`](https://github.com/vxedge/docs/blob/main/FACTS.md).
 
+## Resources and prompts
+
+An agent reads intent without a tool call:
+
+| Resource | What it is | vxAPI RPC |
+|---|---|---|
+| `vxp://catalog` | The packages in this host's cache | `PackageService.List` |
+| `vxp://{id}@{version}`, `vxp://sha256:<hex>` | A cached package's typed descriptor: parameters, metrics, criteria, campaign | `PackageService.Inspect` (by digest; an id and version are found in `List` first) |
+| `vxresult://{campaign_id}/verdict` | A campaign's verdict, typed per criterion | `ResultService.Verdict` |
+
+An unknown resource is a not-found error that carries the typed refusal in `data`.
+
+Prompts are recipes over the tools above, not new behaviour:
+- `reproduce_result` (`workspace`, `reference_campaign_id`, optional `profile`) plans, runs and
+  watches a campaign, then reports its verdict and how it compares with the reference.
+- `find_knee` (`workspace`, `parameter`, `metric`) runs a sweep and finds the first point that
+  leaves the low-load band.
+- `compare_baselines` (`campaign_id`, `reference_campaign_id`) compares two finished campaigns.
+
 ## MCP version
 
 vxmcp targets MCP specification **2026-07-28** on [`rmcp`](https://github.com/modelcontextprotocol/rust-sdk),
