@@ -21,6 +21,13 @@ All notable changes to this repo are documented here. Format follows
 
 Both found by the done-means gate (X8.4).
 
+### Changed
+
+- **Follows vxedge 0.15.1** (`vxedge-api` pinned to `v0.15.1`): `campaign_start` retried with
+  the same `request_id` while its campaign runs returns that campaign's job instead of
+  `ERROR_REASON_BUSY`, and a retry with another profile is refused
+  `ERROR_REASON_PARAMETER_INVALID`.
+
 ## [0.4.0] - 2026-11-10
 
 Follows vxedge 0.15.0: a package's scenario is readable as a resource, and the package and host
