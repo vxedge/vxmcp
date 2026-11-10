@@ -8,6 +8,15 @@ All notable changes to this repo are documented here. Format follows
 
 ### Added
 
+- **Resources** an agent reads without a tool call: `vxp://catalog` (the package cache),
+  `vxp://{id}@{version}` or `vxp://sha256:<hex>` (a cached package's typed descriptor), and
+  `vxresult://{campaign_id}/verdict` (a campaign's verdict). Each is one vxAPI read. An unknown
+  one is a not-found error carrying the typed refusal.
+- **Prompts** that are recipes over the tools: `reproduce_result`, `find_knee` and
+  `compare_baselines`.
+
+### Added
+
 - **Follows vxedge 0.14.0** (`vxedge-api` pinned to `v0.14.0`), with tools for the services it
   adds:
   - **Packages:** `package_inspect` and `package_list`, and `package_pull`, which asks for

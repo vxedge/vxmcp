@@ -18,14 +18,18 @@ use rmcp::{
         wrapper::Parameters,
     },
     model::{
-        CallToolResponse, CallToolResult, Implementation, ProtocolVersion, ServerCapabilities,
-        ServerConfig,
+        CallToolResponse, CallToolResult, GetPromptRequestParams, GetPromptResponse,
+        GetPromptResult, Implementation, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ResourceTemplate,
+        ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
     transport::stdio,
 };
 
+mod catalog;
 mod confirm;
 mod tools;
 
@@ -944,7 +948,13 @@ impl VxmcpServer {
 #[tool_handler]
 impl ServerHandler for VxmcpServer {
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+        ServerConfig::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .enable_prompts()
+                .build(),
+        )
             .with_server_info(Implementation::from_build_env())
             .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_instructions(
@@ -968,6 +978,64 @@ impl ServerHandler for VxmcpServer {
     /// answer or disconnect, not to talk this server into an older protocol.
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
         std::borrow::Cow::Borrowed(&[ProtocolVersion::V_2026_07_28])
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        Ok(ListResourcesResult::with_all_items(vec![
+            Resource::new(catalog::CATALOG, "catalog")
+                .with_description("The packages in this host's cache: digest, id and version."),
+        ]))
+    }
+
+    async fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, McpError> {
+        Ok(ListResourceTemplatesResult::with_all_items(vec![
+            ResourceTemplate::new(catalog::PACKAGE_TEMPLATE, "package").with_description(
+                "A cached package's typed descriptor: parameters, metrics, criteria, campaign. \
+                 `vxp://sha256:<hex>` names one by digest.",
+            ),
+            ResourceTemplate::new(catalog::VERDICT_TEMPLATE, "verdict").with_description(
+                "A campaign's verdict, judged from its archives: typed per criterion.",
+            ),
+        ]))
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, McpError> {
+        let uri = request.uri;
+        let value = catalog::read(self.ch(), &uri).await?;
+        let text = serde_json::to_string_pretty(&value)
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(text, uri)]).into())
+    }
+
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        Ok(ListPromptsResult::with_all_items(catalog::prompts()))
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResponse, McpError> {
+        let args = request.arguments.unwrap_or_default();
+        let messages = catalog::prompt(&request.name, &args)
+            .map_err(|why| McpError::invalid_params(why, None))?;
+        Ok(GetPromptResult::new(messages).into())
     }
 }
 
