@@ -5,6 +5,8 @@
 //! - `vxp://catalog`: the packages in this host's cache (`PackageService.List`).
 //! - `vxp://{id}@{version}`, or `vxp://sha256:<hex>`: one cached package's typed descriptor
 //!   (`PackageService.Inspect` by digest; an id and version are found in `List` first).
+//! - `vxp://{id}@{version}/scenario` (or `vxp://sha256:<hex>/scenario`): only its scenario: road,
+//!   storyboard, simulator, clock, seed, actors, entities and parameters with bounds.
 //! - `vxresult://{campaign_id}/verdict`: a campaign's verdict (`ResultService.Verdict`).
 //!
 //! **Prompts:** `reproduce_result`, `find_knee` and `compare_baselines`.
@@ -22,13 +24,22 @@ use vxedge_api::v1::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Uri {
     Catalog,
-    PackageDigest(String),
-    Package { id: String, version: String },
+    /// A package by digest; `scenario` reads only its scenario.
+    PackageDigest {
+        digest: String,
+        scenario: bool,
+    },
+    Package {
+        id: String,
+        version: String,
+        scenario: bool,
+    },
     Verdict(String),
 }
 
 pub const CATALOG: &str = "vxp://catalog";
 pub const PACKAGE_TEMPLATE: &str = "vxp://{id}@{version}";
+pub const SCENARIO_TEMPLATE: &str = "vxp://{id}@{version}/scenario";
 pub const VERDICT_TEMPLATE: &str = "vxresult://{campaign_id}/verdict";
 
 /// Parse a resource URI this server serves, or `None`. A package id may contain `/`
@@ -38,13 +49,23 @@ pub fn parse(uri: &str) -> Option<Uri> {
         return Some(Uri::Catalog);
     }
     if let Some(rest) = uri.strip_prefix("vxp://") {
+        let (rest, scenario) = match rest.strip_suffix("/scenario") {
+            Some(r) => (r, true),
+            None => (rest, false),
+        };
         if rest.starts_with("sha256:") {
-            return Some(Uri::PackageDigest(rest.to_string()));
+            return (!rest.contains('/')).then(|| Uri::PackageDigest {
+                digest: rest.to_string(),
+                scenario,
+            });
         }
         let (id, version) = rest.rsplit_once('@')?;
-        return (!id.is_empty() && !version.is_empty()).then(|| Uri::Package {
-            id: id.to_string(),
-            version: version.to_string(),
+        return (!id.is_empty() && !version.is_empty() && !version.contains('/')).then(|| {
+            Uri::Package {
+                id: id.to_string(),
+                version: version.to_string(),
+                scenario,
+            }
         });
     }
     let campaign = uri.strip_prefix("vxresult://")?.strip_suffix("/verdict")?;
@@ -64,6 +85,7 @@ fn refused(status: tonic::Status) -> McpError {
 async fn inspect(
     channel: tonic::transport::Channel,
     digest: String,
+    scenario: bool,
 ) -> Result<serde_json::Value, McpError> {
     let info = PackageServiceClient::new(channel)
         .inspect(PackageInspectRequest {
@@ -75,6 +97,15 @@ async fn inspect(
         .await
         .map_err(refused)?
         .into_inner();
+    if scenario {
+        let Some(s) = info.scenario else {
+            return Err(McpError::resource_not_found(
+                format!("package `{}` names no scenario", info.id),
+                None,
+            ));
+        };
+        return serde_json::to_value(s).map_err(|e| McpError::internal_error(e.to_string(), None));
+    }
     serde_json::to_value(info).map_err(|e| McpError::internal_error(e.to_string(), None))
 }
 
@@ -100,8 +131,12 @@ pub async fn read(
                 .into_inner();
             json(serde_json::to_value(list))
         }
-        Some(Uri::PackageDigest(digest)) => inspect(channel, digest).await,
-        Some(Uri::Package { id, version }) => {
+        Some(Uri::PackageDigest { digest, scenario }) => inspect(channel, digest, scenario).await,
+        Some(Uri::Package {
+            id,
+            version,
+            scenario,
+        }) => {
             let list = PackageServiceClient::new(channel.clone())
                 .list(PackageListRequest {})
                 .await
@@ -117,7 +152,7 @@ pub async fn read(
                         None,
                     )
                 })?;
-            inspect(channel, found.digest).await
+            inspect(channel, found.digest, scenario).await
         }
         Some(Uri::Verdict(campaign_id)) => {
             let v = ResultServiceClient::new(channel)
@@ -279,11 +314,34 @@ mod tests {
             parse("vxp://vxedge/h1-slice-isolation@1.2.0"),
             Some(Uri::Package {
                 id: "vxedge/h1-slice-isolation".into(),
-                version: "1.2.0".into()
+                version: "1.2.0".into(),
+                scenario: false,
+            })
+        );
+        assert_eq!(
+            parse("vxp://vxedge/h1-slice-isolation@1.2.0/scenario"),
+            Some(Uri::Package {
+                id: "vxedge/h1-slice-isolation".into(),
+                version: "1.2.0".into(),
+                scenario: true,
             })
         );
         let d = format!("sha256:{}", "a".repeat(64));
-        assert_eq!(parse(&format!("vxp://{d}")), Some(Uri::PackageDigest(d)));
+        assert_eq!(
+            parse(&format!("vxp://{d}")),
+            Some(Uri::PackageDigest {
+                digest: d.clone(),
+                scenario: false
+            })
+        );
+        assert_eq!(
+            parse(&format!("vxp://{d}/scenario")),
+            Some(Uri::PackageDigest {
+                digest: d,
+                scenario: true
+            })
+        );
+        assert_eq!(parse("vxp://acme/x@1.0/other"), None);
         assert_eq!(
             parse("vxresult://c-1/verdict"),
             Some(Uri::Verdict("c-1".into()))

@@ -1001,6 +1001,10 @@ impl ServerHandler for VxmcpServer {
                 "A cached package's typed descriptor: parameters, metrics, criteria, campaign. \
                  `vxp://sha256:<hex>` names one by digest.",
             ),
+            ResourceTemplate::new(catalog::SCENARIO_TEMPLATE, "scenario").with_description(
+                "A cached package's scenario, typed: road, storyboard, simulator, clock, seed, \
+                 actors, entities, and storyboard parameters with bounds.",
+            ),
             ResourceTemplate::new(catalog::VERDICT_TEMPLATE, "verdict").with_description(
                 "A campaign's verdict, judged from its archives: typed per criterion.",
             ),
