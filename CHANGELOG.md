@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-11
+
+Follows vxedge 0.17.0 (`vxedge-api` pinned to `v0.17.0`): `result_compare` and the
+`reproduce_result` prompt take an optional `reference_workspace`, so a campaign can be compared
+with a frozen one recorded in a workspace's `results/`. No tool is added or removed.
+
 ### Added
 
 - **`result_compare` against a reference this host did not run.** The optional
