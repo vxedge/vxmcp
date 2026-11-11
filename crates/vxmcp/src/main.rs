@@ -436,7 +436,9 @@ impl VxmcpServer {
         description = "Compare a campaign with a reference campaign: per metric at each point, \
                         both medians and IQRs and whether the difference is within the \
                         reference's IQR (`within` counts them); per criterion, the outcome on \
-                        both sides.",
+                        both sides. The reference is a campaign this host ran, or, with \
+                        `reference_workspace`, one recorded in that workspace's `results/`, \
+                        such as a frozen campaign.",
         annotations(read_only_hint = true)
     )]
     async fn result_compare(

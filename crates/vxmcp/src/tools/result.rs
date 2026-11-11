@@ -4,7 +4,8 @@
 //! - `result_verdict` → `Verdict`: the experiment's criteria judged over a campaign's archives,
 //!   typed per criterion, with the trial values behind each.
 //! - `result_compare` → `Compare`: a campaign against a reference campaign, per metric at each
-//!   point and per criterion.
+//!   point and per criterion. The reference is one this host ran, or one recorded in a
+//!   workspace's `results/`.
 //! - `result_fetch` → `Fetch` (server streaming), behind `crate::confirm`: an archive's bytes,
 //!   written to a file where this server runs and checked against the digest they were asked by,
 //!   so an agent that shares no filesystem with the daemon can still re-hash a result.
@@ -49,6 +50,12 @@ pub struct ResultCompareArgs {
     pub campaign_id: String,
     /// The campaign it is compared with. Both are judged by the first one's experiment.
     pub reference_campaign_id: String,
+    /// For a reference this host did not run, such as a frozen campaign published with its
+    /// archives: the workspace (a path, or a `sha256:` package digest) whose
+    /// `results/<reference_campaign_id>/campaign.json` records it. Its archives must hash to that
+    /// record.
+    #[serde(default)]
+    pub reference_workspace: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -131,6 +138,10 @@ pub async fn compare(
         .compare(ResultCompareRequest {
             campaign_id: args.campaign_id,
             reference_campaign_id: args.reference_campaign_id,
+            reference_workspace: args
+                .reference_workspace
+                .as_deref()
+                .and_then(super::package::package_ref),
         })
         .await?
         .into_inner();

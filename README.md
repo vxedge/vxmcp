@@ -103,8 +103,10 @@ An agent reads intent without a tool call:
 An unknown resource is a not-found error that carries the typed refusal in `data`.
 
 Prompts are recipes over the tools above, not new behaviour:
-- `reproduce_result` (`workspace`, `reference_campaign_id`, optional `profile`) plans, runs and
-  watches a campaign, then reports its verdict and how it compares with the reference.
+- `reproduce_result` (`workspace`, `reference_campaign_id`, optional `profile` and
+  `reference_workspace`) plans, runs and watches a campaign, then reports its verdict and how it
+  compares with the reference. With `reference_workspace`, the reference is a campaign recorded in
+  that workspace's `results/`, such as a frozen one, rather than one this host ran.
 - `find_knee` (`workspace`, `parameter`, `metric`) runs a sweep and finds the first point that
   leaves the low-load band.
 - `compare_baselines` (`campaign_id`, `reference_campaign_id`) compares two finished campaigns.
