@@ -6,6 +6,15 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`result_compare` against a reference this host did not run.** The optional
+  `reference_workspace` (a path, or a `sha256:` package digest) names a workspace whose
+  `results/<reference_campaign_id>/campaign.json` records the reference, such as a frozen campaign
+  published with its archives. vxedged checks each archive against that record. The
+  `reproduce_result` prompt takes the same optional argument. Follows vxedge 0.17.0
+  (`vxedge-api` pinned to `v0.17.0`).
+
 ## [0.4.2] - 2026-11-10
 
 Follows vxedge 0.16.0 (`vxedge-api` pinned to `v0.16.0`): `vehicle_status` describes the new

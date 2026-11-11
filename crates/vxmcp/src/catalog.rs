@@ -192,6 +192,12 @@ pub fn prompts() -> Vec<Prompt> {
                     "A profile the campaign declares, such as `quick`.",
                     false,
                 ),
+                arg(
+                    "reference_workspace",
+                    "For a reference this host did not run: the workspace whose `results/` \
+                     records it, such as a frozen campaign.",
+                    false,
+                ),
             ]),
         ),
         Prompt::new(
@@ -252,6 +258,9 @@ pub fn prompt(
             let profile = get(args, "profile")
                 .map(|p| format!(" with profile `{p}`"))
                 .unwrap_or_default();
+            let recorded = get(args, "reference_workspace")
+                .map(|w| format!(", with reference_workspace `{w}`"))
+                .unwrap_or_default();
             format!(
                 "Reproduce campaign `{reference}` from the workspace `{ws}`{profile}.\n\
                  1. package_inspect `{ws}`: read its hypothesis, parameters, metrics and criteria.\n\
@@ -261,7 +270,7 @@ pub fn prompt(
                  resumes instead of starting over. The user confirms once.\n\
                  4. campaign_watch the campaign until `end` is `finished`; on `timed_out`, call it \
                  again.\n\
-                 5. result_verdict the new campaign, and result_compare it with `{reference}`.\n\
+                 5. result_verdict the new campaign, and result_compare it with `{reference}`{recorded}.\n\
                  6. Report the verdict's `outcome` and each criterion's, and how many metric \
                  points are `within` the reference's IQR, naming those outside. Branch on the \
                  typed outcomes, never on prose; `inconclusive` is not a pass."
@@ -369,6 +378,10 @@ mod tests {
         args.insert("workspace".into(), "/ws/e".into());
         args.insert("reference_campaign_id".into(), "c-1".into());
         let text = format!("{:?}", prompt("reproduce_result", &args).unwrap());
+        assert!(!text.contains("reference_workspace"));
+        args.insert("reference_workspace".into(), "/ws/frozen".into());
+        let text = format!("{:?}", prompt("reproduce_result", &args).unwrap());
+        assert!(text.contains("reference_workspace `/ws/frozen`"), "{text}");
         for tool in [
             "campaign_plan",
             "campaign_start",
