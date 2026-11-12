@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Follows vxedge 0.23.0 (`vxedge-api` pinned to `v0.23.0`): an OTA service can publish its own
+  store per run and run fetch clients, which `campaign_plan` and `campaign_start` check through
+  `CampaignService.Plan`. No message or tool changes.
+
 ## [0.4.6] - 2026-11-12
 
 Follows vxedge 0.22.0 (`vxedge-api` pinned to `v0.22.0`), through 0.21.0: verdicts carry
