@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-12
+
+Follows vxedge 0.19.0 (`vxedge-api` pinned to `v0.19.0`): `result_verdict` takes an optional
+`reference_workspace` for criteria that read a reference campaign, and `campaign_plan` lists each
+trial's measure windows. No tool is added or removed.
+
 ### Added
 
 - **`result_verdict` reads reference campaigns.** The optional `reference_workspace` (a path, or a
