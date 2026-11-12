@@ -8,10 +8,12 @@ All notable changes to this repo are documented here. Format follows
 
 ### Changed
 
-- Follows vxedge 0.24.0 (`vxedge-api` pinned to `v0.24.0`), through 0.23.0: an OTA service can
+- Follows vxedge 0.25.0 (`vxedge-api` pinned to `v0.25.0`), through 0.23.0: an OTA service can
   publish its own store per run and run fetch clients, which `campaign_plan` and `campaign_start`
-  check through `CampaignService.Plan`, and a result's archive names the tool binaries the daemon
-  runs. No message or tool changes.
+  check through `CampaignService.Plan`; a result's archive names the tool binaries the daemon
+  runs; a check step's output can carry samples that metrics read, and a metric can reduce its
+  samples over the window. Tool results carry the new additive fields as they come
+  (`NodeSpec.qemu`, `PackageMetric.reduce` and `window`). No tool is added or changed.
 
 ## [0.4.6] - 2026-11-12
 
