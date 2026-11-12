@@ -269,7 +269,7 @@ pub fn prompt(
                  1. package_inspect `{ws}`: read its hypothesis, parameters, metrics and criteria.\n\
                  2. campaign_plan `{ws}`{profile}. Stop if it has problems or \
                  `vxmcpBudget.within` is false, and report why.\n\
-                 3. campaign_start `{ws}`{profile} with a request_id of your choosing, so a retry \
+                 3. campaign_start `{ws}`{profile}{recorded} with a request_id of your choosing, so a retry \
                  resumes instead of starting over. The user confirms once.\n\
                  4. campaign_watch the campaign until `end` is `finished`; on `timed_out`, call it \
                  again.\n\
