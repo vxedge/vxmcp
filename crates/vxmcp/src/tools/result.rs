@@ -2,7 +2,8 @@
 //! - `result_list` → `List`: archives by campaign or under a workspace's `results/`.
 //! - `result_get` → `Get`: one archive by digest, from its own `metadata.json`.
 //! - `result_verdict` → `Verdict`: the experiment's criteria judged over a campaign's archives,
-//!   typed per criterion, with the trial values behind each.
+//!   typed per criterion, with the trial values behind each, and the reference campaigns its
+//!   criteria read.
 //! - `result_compare` → `Compare`: a campaign against a reference campaign, per metric at each
 //!   point and per criterion. The reference is one this host ran, or one recorded in a
 //!   workspace's `results/`.
@@ -42,6 +43,11 @@ pub struct ResultGetArgs {
 pub struct ResultVerdictArgs {
     /// The campaign whose archives are judged, from `campaign_list`.
     pub campaign_id: String,
+    /// For criteria that read a reference campaign the experiment declares (`references`) and
+    /// this host did not run, such as a frozen one: the workspace (a path, or a `sha256:`
+    /// package digest) whose `results/<campaign>/campaign.json` records it.
+    #[serde(default)]
+    pub reference_workspace: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -124,6 +130,10 @@ pub async fn verdict(
     let v = ResultServiceClient::new(channel)
         .verdict(ResultVerdictRequest {
             campaign_id: args.campaign_id,
+            reference_workspace: args
+                .reference_workspace
+                .as_deref()
+                .and_then(super::package::package_ref),
         })
         .await?
         .into_inner();

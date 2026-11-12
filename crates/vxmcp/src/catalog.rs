@@ -156,7 +156,10 @@ pub async fn read(
         }
         Some(Uri::Verdict(campaign_id)) => {
             let v = ResultServiceClient::new(channel)
-                .verdict(ResultVerdictRequest { campaign_id })
+                .verdict(ResultVerdictRequest {
+                    campaign_id,
+                    ..Default::default()
+                })
                 .await
                 .map_err(refused)?
                 .into_inner();
