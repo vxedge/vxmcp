@@ -6,6 +6,14 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`campaign_start` takes `reference_workspace`** (a path, or a `sha256:` package digest): where
+  the reference campaigns the experiment's `references` name are recorded, such as a frozen one.
+  vxedged records it with the campaign, so the verdict judged when it finishes reads them. The
+  `reproduce_result` prompt passes it on. Follows vxedge 0.20.0 (`vxedge-api` pinned to `v0.20.0`),
+  whose measurements also run from a 5G UE; tool results carry that as they carry any measurement.
+
 ## [0.4.4] - 2026-11-12
 
 Follows vxedge 0.19.0 (`vxedge-api` pinned to `v0.19.0`): `result_verdict` takes an optional

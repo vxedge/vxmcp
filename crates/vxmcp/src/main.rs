@@ -919,6 +919,7 @@ impl VxmcpServer {
         let bound = serde_json::json!({
             "workspace": ws, "profile": args.profile, "request_id": args.request_id,
             "caller": args.caller, "unlocked": args.unlocked, "trials": plan.trials.len(),
+            "reference_workspace": args.reference_workspace,
         });
         let run = tools::campaign::start(self.ch(), ws, args);
         self.gated(

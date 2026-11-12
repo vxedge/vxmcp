@@ -53,6 +53,11 @@ pub struct CampaignStartArgs {
     /// Skip each trial's `vxp.lock` check while authoring. Recorded with the campaign.
     #[serde(default)]
     pub unlocked: bool,
+    /// Where the reference campaigns the experiment's `references` name are recorded, such as a
+    /// frozen one: a workspace path or `sha256:` package digest whose `results/<campaign>/`
+    /// holds each. Recorded with the campaign, so its final verdict can read them.
+    #[serde(default)]
+    pub reference_workspace: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -212,6 +217,7 @@ pub async fn start(
             request_id: args.request_id.unwrap_or_default(),
             caller,
             unlocked: args.unlocked,
+            reference_workspace: args.reference_workspace.as_deref().and_then(package_ref),
             ..Default::default()
         })
         .await?
