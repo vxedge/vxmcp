@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Follows vxedge 0.21.0 (`vxedge-api` pinned to `v0.21.0`). No tool changes: a measurement may now
+  send from `host`, aim at a guest whose part declares its reflector, and an experiment may
+  `isolate` one device, and tool results carry these as they carry any measurement or document.
+
 ## [0.4.5] - 2026-11-12
 
 Follows vxedge 0.20.0 (`vxedge-api` pinned to `v0.20.0`): `campaign_start` takes
