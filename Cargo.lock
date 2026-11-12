@@ -1466,8 +1466,8 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vxedge-api"
-version = "0.23.0"
-source = "git+https://github.com/vxedge/vxedge?rev=8f65254283d40d61ac3e63f19465adf3cb1830f0#8f65254283d40d61ac3e63f19465adf3cb1830f0"
+version = "0.24.0"
+source = "git+https://github.com/vxedge/vxedge?rev=590a7ee8a1ae48ffde147bb7b32b4483ec612ae8#590a7ee8a1ae48ffde147bb7b32b4483ec612ae8"
 dependencies = [
  "pbjson",
  "pbjson-build",
