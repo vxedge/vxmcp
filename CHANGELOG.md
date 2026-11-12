@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-12
+
+Follows vxedge 0.22.0 (`vxedge-api` pinned to `v0.22.0`), through 0.21.0: verdicts carry
+functional check cases and observations, and measurements may run from the host or aim at a guest.
+No tool is added or removed.
+
 ### Changed
 
 - Follows vxedge 0.22.0 (`vxedge-api` pinned to `v0.22.0`): functional checks. `result_verdict`
