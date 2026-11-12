@@ -422,7 +422,9 @@ impl VxmcpServer {
         description = "Judge a campaign's experiment criteria over its archives, read from the \
                         archives each time: `outcome` and, per criterion, its outcome, the \
                         operand values, every metric read with the trials and values behind it, \
-                        and `why` when it is inconclusive. Branch on `outcome`, never on prose. \
+                        and `why` when it is inconclusive. A `cases` criterion lists each \
+                        functional check case per trial; `observations` holds what `observe` \
+                        cases recorded, never judged. Branch on `outcome`, never on prose. \
                         A criterion may read a reference campaign the experiment declares; give \
                         `reference_workspace` when that campaign is recorded in a workspace's \
                         `results/` rather than run on this host.",

@@ -8,6 +8,11 @@ All notable changes to this repo are documented here. Format follows
 
 ### Changed
 
+- Follows vxedge 0.22.0 (`vxedge-api` pinned to `v0.22.0`): functional checks. `result_verdict`
+  and the `vxresult://` verdict resource carry each `cases` criterion's case results per trial,
+  each trial's `cases`, and the `observations` of `observe` cases; `package_inspect` carries a
+  `cases` criterion; a `checks` block that cannot run is refused with
+  `ERROR_REASON_CHECK_INVALID`. No tool is added or removed.
 - Follows vxedge 0.21.0 (`vxedge-api` pinned to `v0.21.0`). No tool changes: a measurement may now
   send from `host`, aim at a guest whose part declares its reflector, and an experiment may
   `isolate` one device, and tool results carry these as they carry any measurement or document.
