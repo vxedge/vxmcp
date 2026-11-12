@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-12
+
+Follows vxedge 0.20.0 (`vxedge-api` pinned to `v0.20.0`): `campaign_start` takes
+`reference_workspace`, so a campaign whose criteria read a frozen reference records where it is
+and judges it when it finishes. No tool is added or removed.
+
 ### Added
 
 - **`campaign_start` takes `reference_workspace`** (a path, or a `sha256:` package digest): where
