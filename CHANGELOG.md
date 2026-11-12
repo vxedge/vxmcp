@@ -6,6 +6,20 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`result_verdict` reads reference campaigns.** The optional `reference_workspace` (a path, or a
+  `sha256:` package digest) names the workspace whose `results/<campaign>/campaign.json` records
+  each reference campaign the experiment's criteria read, such as a frozen one. Follows vxedge
+  0.19.0 (`vxedge-api` pinned to `v0.19.0`).
+
+### Changed
+
+- **Follows vxedge 0.18.0 and 0.19.0.** `campaign_plan` lists each trial's measure windows, with
+  their own parameter values, when the campaign declares `windows`. A verdict's reads name the
+  reference campaign they came from. Both come through as vxedged returns them, with no tool
+  change.
+
 ## [0.4.3] - 2026-11-11
 
 Follows vxedge 0.17.0 (`vxedge-api` pinned to `v0.17.0`): `result_compare` and the
