@@ -6,12 +6,22 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+Follows vxedge 0.26.0. `telemetry_collect` drops `archive_version`, since vxedged always writes
+`vxarchive/2`, and workspace tools describe only `vxp.yaml` packages. With vxedge 0.25.0 and
+0.23.0: OTA services that publish their own store and run fetch clients, check samples, metric
+reductions and QEMU options, all as additive fields in tool results.
+
 ### Changed
 
 - `telemetry_collect` no longer takes `archive_version`: vxedged always writes `vxarchive/2` and
   ignores the field (decision X-30). Workspace descriptions name only `vxp.yaml`; vxedge refuses a
   legacy `<name>.vxp` descriptor.
-- Follows vxedge 0.25.0 (`vxedge-api` pinned to `v0.25.0`), through 0.23.0: an OTA service can
+- Follows vxedge 0.26.0 (`vxedge-api` pinned to `v0.26.0`): vxedge reads only `vxarchive/2` and
+  `vxp.yaml` packages, so `results_verdict` and `results_compare` on a `vxarchive/1` archive, and
+  any workspace tool on a legacy `<name>.vxp` descriptor, return vxedge's refusal with the current
+  format named. Through 0.25.0 and 0.23.0: an OTA service can
   publish its own store per run and run fetch clients, which `campaign_plan` and `campaign_start`
   check through `CampaignService.Plan`; a result's archive names the tool binaries the daemon
   runs; a check step's output can carry samples that metrics read, and a metric can reduce its
