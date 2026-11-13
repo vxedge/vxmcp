@@ -18,7 +18,7 @@ use vxedge_api::v1::{
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentStatusArgs {
     /// Path to the experiment workspace — the directory holding its documents and its descriptor
-    /// (`vxp.yaml`, or a legacy `<name>.vxp`). Relative paths are resolved against this server's
+    /// (`vxp.yaml`). Relative paths are resolved against this server's
     /// own working directory, not the caller's.
     pub workspace: String,
 }
@@ -26,7 +26,7 @@ pub struct ExperimentStatusArgs {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentUpArgs {
     /// Path to the experiment workspace to bring up — the directory holding its documents and
-    /// its descriptor (`vxp.yaml`, or a legacy `<name>.vxp`). A `vxp/1` package that does not
+    /// its descriptor (`vxp.yaml`). A `vxp/1` package that does not
     /// match its `vxp.lock` is refused with `ERROR_REASON_LOCK_MISMATCH`, naming each difference.
     /// You will be asked to confirm.
     pub workspace: String,
