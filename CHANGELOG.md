@@ -8,6 +8,9 @@ All notable changes to this repo are documented here. Format follows
 
 ### Changed
 
+- `telemetry_collect` no longer takes `archive_version`: vxedged always writes `vxarchive/2` and
+  ignores the field (decision X-30). Workspace descriptions name only `vxp.yaml`; vxedge refuses a
+  legacy `<name>.vxp` descriptor.
 - Follows vxedge 0.25.0 (`vxedge-api` pinned to `v0.25.0`), through 0.23.0: an OTA service can
   publish its own store per run and run fetch clients, which `campaign_plan` and `campaign_start`
   check through `CampaignService.Plan`; a result's archive names the tool binaries the daemon

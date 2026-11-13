@@ -856,9 +856,9 @@ impl VxmcpServer {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
         let question = tools::telemetry::collect_confirmation(&ws, args.out_path.as_deref());
         let bound = serde_json::json!({
-            "workspace": ws, "out_path": args.out_path, "archive_version": args.archive_version,
+            "workspace": ws, "out_path": args.out_path,
         });
-        let run = tools::telemetry::collect(self.ch(), ws, args.out_path, args.archive_version);
+        let run = tools::telemetry::collect(self.ch(), ws, args.out_path);
         self.gated(
             &ctx,
             state,

@@ -14,7 +14,7 @@ use super::experiment::{path_ref, resolve_workspace};
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct WorkspaceArgs {
     /// Path to the experiment or vehicle workspace — the directory holding its documents and, for
-    /// a package, its descriptor (`vxp.yaml`, or a legacy `<name>.vxp`). Relative paths are
+    /// a package, its descriptor (`vxp.yaml`). Relative paths are
     /// resolved against this server's own working directory.
     pub workspace: String,
 }
