@@ -6,6 +6,13 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- vxedge is described as a virtual vehicle with environmental parity, for packaged, measured SDV experiments;
+  5G slicing is one family of its measured cases. `README.md` and the `CITATION.cff` title use the
+  wording registered in `docs/FACTS.md` (`project.summary`, `project.description`). No identifier, API or
+  result changes.
+
 ## [0.5.0] - 2026-11-13
 
 Follows vxedge 0.26.0. `telemetry_collect` drops `archive_version`, since vxedged always writes
