@@ -6,6 +6,15 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-18
+
+Follows vxedge 0.32.0: several runs share a host, each in its own instance slot. `experiment_up`,
+`vehicle_up` and `campaign_start` take an optional `instance`; the experiment and vehicle status and
+down tools and `gateway_status` take an optional `run_id`, which defaults to the workspace's run.
+Every confirmation names the run or slot it acts on, and down's says it stops traffic and
+measurements first. All additive: a call without the new arguments behaves as before on a host with
+one run.
+
 ### Added
 
 - Several runs on one host (vxedge 0.31.0, `ARCHITECTURE.md` §5.2, §6.0.5). `experiment_up`,
