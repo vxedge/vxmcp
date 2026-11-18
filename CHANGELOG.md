@@ -6,6 +6,12 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-18
+
+Follows vxedge 0.33.0's fleet view. `run_status` reads every run's status in one call, or the named
+runs', and `run_down` takes several runs, or every run, down as one confirmed `run.down` job whose
+confirmation lists the runs up when it asks. All additive: no existing tool or argument changes.
+
 ### Added
 
 - The fleet view (vxedge 0.33.0, `ARCHITECTURE.md` §5). `run_status` reads every run's status in one
