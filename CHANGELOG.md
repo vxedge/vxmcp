@@ -6,12 +6,25 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- Several runs on one host (vxedge 0.31.0, `ARCHITECTURE.md` §5.2, §6.0.5). `experiment_up`,
+  `vehicle_up` and `campaign_start` take an optional `instance`, the slot to run in, checked before
+  the human is asked. `experiment_status`, `experiment_down`, `vehicle_status`, `vehicle_down` and
+  `gateway_status` take an optional `run_id`; omitted, it means the workspace's run, or the only
+  run. Both are bound to the confirmation ticket.
+
 ### Changed
 
 - vxedge is described as a virtual vehicle with environmental parity, for packaged, measured SDV experiments;
   5G slicing is one family of its measured cases. `README.md` and the `CITATION.cff` title use the
   wording registered in `docs/FACTS.md` (`project.summary`, `project.description`). No identifier, API or
   result changes.
+- Confirmations name the run a tool acts on, or the slot `up` takes, instead of "the run active on
+  this host". Down no longer says it is refused for a workspace that is not the active one: vxedged
+  refuses when the workspace has no run up, or several and none is named. Down's confirmation says
+  it stops the run's traffic and measurements first, as vxedge 0.32.0 does.
+- `vxedge-api` pinned to vxedge `v0.32.0`.
 
 ## [0.5.0] - 2026-11-13
 

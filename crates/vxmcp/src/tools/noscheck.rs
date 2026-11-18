@@ -19,7 +19,7 @@ pub struct NosCheckArgs {
     /// Path to the experiment workspace that declares the NOS check. Mutating tools ask you to
     /// confirm.
     pub workspace: String,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
     /// `noscheck_verify` only: an id of your choosing. Retrying with the same id returns the
@@ -43,7 +43,7 @@ pub async fn status(
 }
 
 /// What each mutating NOS check tool does, for its confirmation.
-pub fn confirmation(verb: &str, resolved_workspace: &str) -> String {
+pub fn confirmation(verb: &str, resolved_workspace: &str, run_id: Option<&str>) -> String {
     let what = match verb {
         "up" => "Boot the NOS check instance",
         "down" => "Stop the NOS check instance",
@@ -52,9 +52,10 @@ pub fn confirmation(verb: &str, resolved_workspace: &str) -> String {
              plan, then remove it, for"
         }
     };
+    let run = super::out::run_words(run_id);
     format!(
-        "{what} that `{resolved_workspace}` declares, in the run active on this host. This \
-         affects anyone using this host's testbed. Confirm?"
+        "{what} that `{resolved_workspace}` declares, in {run}. This affects anyone using this \
+         host's testbed. Confirm?"
     )
 }
 
@@ -113,9 +114,12 @@ mod tests {
 
     #[test]
     fn confirmations_say_what_each_verb_does() {
-        assert!(confirmation("up", "/ws/e").starts_with("Boot the NOS check instance that"));
-        assert!(confirmation("down", "/ws/e").starts_with("Stop the NOS check instance that"));
-        let v = confirmation("verify", "/ws/e");
+        assert!(confirmation("up", "/ws/e", None).starts_with("Boot the NOS check instance that"));
+        assert!(
+            confirmation("down", "/ws/e", Some("r1"))
+                .starts_with("Stop the NOS check instance that")
+        );
+        let v = confirmation("verify", "/ws/e", None);
         assert!(v.contains("compare its switch config with the gateway plan"));
         assert!(v.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }

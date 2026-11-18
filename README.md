@@ -70,8 +70,11 @@ returns that file's path, digest and size rather than a job: the archive's bytes
 the digest they were asked by. The campaign tools take a workspace path or a cached package's
 `sha256:<hex>`, as `package_inspect` does.
 
-Tools that act on a run take an optional `run_id` from `run_list`; omitted, it means the only
-run. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
+Several runs can share a host, each in an instance slot (`0`-`9`, then `a`-`z`). Tools that act on
+a run take an optional `run_id` from `run_list`; omitted, it means the workspace's run, or the only
+run. `experiment_up`, `vehicle_up` and `campaign_start` take an optional `instance`; omitted, the
+workspace keeps its run's slot or takes the lowest free one, and a campaign holds its slot until it
+ends. Confirmations name the slot or the run. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
 `request_id`, so a retry returns the original job instead of starting the work twice (a retried
 campaign resumes and skips the trials already archived). Every read tool carries `readOnlyHint`.
 

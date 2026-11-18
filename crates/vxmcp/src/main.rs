@@ -52,7 +52,7 @@ use tools::stream::{LogsArgs, MetricsArgs, RecordsArgs};
 use tools::svc::{SvcDownArgs, SvcStatusArgs, SvcUpArgs};
 use tools::telemetry::CollectArgs;
 use tools::traffic::{TrafficArgs, TrafficStatusArgs};
-use tools::vehicle::{VehicleStageArgs, VehicleStatusArgs};
+use tools::vehicle::{VehicleDownArgs, VehicleStatusArgs, VehicleUpArgs};
 use tools::workspace::WorkspaceArgs;
 
 /// Where to reach `vxedged` — same default and `unix://`-only contract `vxedge-cli` uses
@@ -166,7 +166,8 @@ impl VxmcpServer {
     }
 
     #[tool(
-        description = "List the runs on this host: each run's id, workspace and start time.",
+        description = "List the runs on this host: each run's id, instance slot, workspace and \
+                        start time.",
         annotations(read_only_hint = true)
     )]
     async fn run_list(&self) -> Result<CallToolResult, McpError> {
@@ -213,12 +214,16 @@ impl VxmcpServer {
     }
 
     #[tool(
-        description = "Get the gateway's observed status: slices, link impairments, ingress \
-                        filters and tunnels as found on the kernel.",
+        description = "Get a run's gateway side, observed: slices, link impairments, ingress \
+                        filters and tunnels as found on the kernel. Omit run_id to mean the \
+                        only run.",
         annotations(read_only_hint = true)
     )]
-    async fn gateway_status(&self) -> Result<CallToolResult, McpError> {
-        finish(tools::gateway::status(self.ch()).await)
+    async fn gateway_status(
+        &self,
+        Parameters(args): Parameters<RunArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        finish(tools::gateway::status(self.ch(), args).await)
     }
 
     #[tool(
@@ -529,11 +534,13 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         tools::out::check_stages(&args.stages)?;
+        let instance = tools::out::check_instance(args.instance.as_deref())?;
         // Resolved once: the confirmation, the ticket and the RPC all use this exact string.
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::experiment::up_confirmation(&ws, &args.stages);
-        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
-        let run = tools::experiment::up(self.ch(), ws, &args.stages);
+        let question = tools::experiment::up_confirmation(&ws, &args.stages, &instance);
+        let bound =
+            serde_json::json!({ "workspace": ws, "stages": args.stages, "instance": instance });
+        let run = tools::experiment::up(self.ch(), ws, &args.stages, instance);
         self.gated(
             &ctx,
             state,
@@ -547,9 +554,10 @@ impl VxmcpServer {
     }
 
     #[tool(
-        description = "Tear down the experiment at the given workspace path: its services, \
-                        zones and this host's gateway. Only the active experiment can be torn \
-                        down. Asks the human user to confirm first. Returns the job.",
+        description = "Tear down a run of the experiment at the given workspace path: its \
+                        traffic and measurements, services, zones and gateway side. Omit run_id \
+                        to mean the workspace's run. Asks the human user to confirm first. \
+                        Returns the job.",
         annotations(destructive_hint = true)
     )]
     async fn experiment_down(
@@ -561,9 +569,11 @@ impl VxmcpServer {
     ) -> Result<CallToolResponse, McpError> {
         tools::out::check_stages(&args.stages)?;
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::experiment::down_confirmation(&ws, &args.stages);
-        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
-        let run = tools::experiment::down(self.ch(), ws, &args.stages);
+        let question =
+            tools::experiment::down_confirmation(&ws, &args.stages, args.run_id.as_deref());
+        let bound =
+            serde_json::json!({ "workspace": ws, "stages": args.stages, "run_id": args.run_id });
+        let run = tools::experiment::down(self.ch(), ws, &args.stages, args.run_id);
         self.gated(
             &ctx,
             state,
@@ -578,43 +588,47 @@ impl VxmcpServer {
 
     #[tool(
         description = "Bring up the vehicle at the given workspace path, all stages or the ones \
-                        named. Asks the human user to confirm first. Returns the job.",
+                        named, in an instance slot. Asks the human user to confirm first. \
+                        Returns the job.",
         annotations(destructive_hint = true)
     )]
     async fn vehicle_up(
         &self,
-        Parameters(args): Parameters<VehicleStageArgs>,
+        Parameters(args): Parameters<VehicleUpArgs>,
         RequestState(state): RequestState,
         InputResponses(responses): InputResponses,
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         tools::out::check_stages(&args.stages)?;
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::vehicle::up_confirmation(&ws, &args.stages);
-        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
-        let run = tools::vehicle::up(self.ch(), ws, &args.stages);
+        let instance = tools::out::check_instance(args.instance.as_deref())?;
+        let question = tools::vehicle::up_confirmation(&ws, &args.stages, &instance);
+        let bound =
+            serde_json::json!({ "workspace": ws, "stages": args.stages, "instance": instance });
+        let run = tools::vehicle::up(self.ch(), ws, &args.stages, instance);
         self.gated(&ctx, state, responses, "vehicle_up", bound, question, run)
             .await
     }
 
     #[tool(
-        description = "Tear down the vehicle at the given workspace path, in reverse stage \
-                        order. Only the active vehicle can be torn down. Asks the human user to \
-                        confirm first. Returns the job.",
+        description = "Tear down a run of the vehicle at the given workspace path, in reverse \
+                        stage order. Omit run_id to mean the workspace's run. Asks the human \
+                        user to confirm first. Returns the job.",
         annotations(destructive_hint = true)
     )]
     async fn vehicle_down(
         &self,
-        Parameters(args): Parameters<VehicleStageArgs>,
+        Parameters(args): Parameters<VehicleDownArgs>,
         RequestState(state): RequestState,
         InputResponses(responses): InputResponses,
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         tools::out::check_stages(&args.stages)?;
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::vehicle::down_confirmation(&ws, &args.stages);
-        let bound = serde_json::json!({ "workspace": ws, "stages": args.stages });
-        let run = tools::vehicle::down(self.ch(), ws, &args.stages);
+        let question = tools::vehicle::down_confirmation(&ws, &args.stages, args.run_id.as_deref());
+        let bound =
+            serde_json::json!({ "workspace": ws, "stages": args.stages, "run_id": args.run_id });
+        let run = tools::vehicle::down(self.ch(), ws, &args.stages, args.run_id);
         self.gated(&ctx, state, responses, "vehicle_down", bound, question, run)
             .await
     }
@@ -633,7 +647,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::traffic::up_confirmation(&ws, &args.profiles);
+        let question = tools::traffic::up_confirmation(&ws, &args.profiles, args.run_id.as_deref());
         let bound = serde_json::json!({
             "workspace": ws, "profiles": args.profiles, "run_id": args.run_id,
             "request_id": args.request_id, "duration_s": args.duration_s,
@@ -656,7 +670,8 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::traffic::down_confirmation(&ws, &args.profiles);
+        let question =
+            tools::traffic::down_confirmation(&ws, &args.profiles, args.run_id.as_deref());
         let bound = serde_json::json!({
             "workspace": ws, "profiles": args.profiles, "run_id": args.run_id,
         });
@@ -679,7 +694,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::measure::start_confirmation(&ws, &args.ids);
+        let question = tools::measure::start_confirmation(&ws, &args.ids, args.run_id.as_deref());
         let bound = serde_json::json!({
             "workspace": ws, "ids": args.ids, "duration_s": args.duration_s,
             "run_id": args.run_id, "request_id": args.request_id,
@@ -710,7 +725,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::measure::stop_confirmation(&ws, &args.ids);
+        let question = tools::measure::stop_confirmation(&ws, &args.ids, args.run_id.as_deref());
         let bound = serde_json::json!({
             "workspace": ws, "ids": args.ids, "run_id": args.run_id,
         });
@@ -733,7 +748,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::svc::up_confirmation(&args.service_type, &ws);
+        let question = tools::svc::up_confirmation(&args.service_type, &ws, args.run_id.as_deref());
         let bound = serde_json::json!({
             "service_type": args.service_type, "workspace": ws, "run_id": args.run_id,
         });
@@ -754,7 +769,7 @@ impl VxmcpServer {
         InputResponses(responses): InputResponses,
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        let question = tools::svc::down_confirmation(&args.service_type);
+        let question = tools::svc::down_confirmation(&args.service_type, args.run_id.as_deref());
         let bound = serde_json::json!({ "service_type": args.service_type, "run_id": args.run_id });
         let run = tools::svc::down(self.ch(), args);
         self.gated(&ctx, state, responses, "svc_down", bound, question, run)
@@ -774,7 +789,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::noscheck::confirmation("up", &ws);
+        let question = tools::noscheck::confirmation("up", &ws, args.run_id.as_deref());
         let bound = serde_json::json!({ "workspace": ws, "run_id": args.run_id });
         let run = tools::noscheck::up(self.ch(), ws, args);
         self.gated(&ctx, state, responses, "noscheck_up", bound, question, run)
@@ -794,7 +809,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::noscheck::confirmation("down", &ws);
+        let question = tools::noscheck::confirmation("down", &ws, args.run_id.as_deref());
         let bound = serde_json::json!({ "workspace": ws, "run_id": args.run_id });
         let run = tools::noscheck::down(self.ch(), ws, args);
         self.gated(
@@ -823,7 +838,7 @@ impl VxmcpServer {
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let ws = tools::experiment::resolve_workspace(&args.workspace);
-        let question = tools::noscheck::confirmation("verify", &ws);
+        let question = tools::noscheck::confirmation("verify", &ws, args.run_id.as_deref());
         let bound = serde_json::json!({
             "workspace": ws, "run_id": args.run_id, "request_id": args.request_id,
         });
@@ -908,6 +923,7 @@ impl VxmcpServer {
         InputResponses(responses): InputResponses,
         ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
+        let instance = tools::out::check_instance(args.instance.as_deref())?;
         let ws = tools::experiment::resolve_workspace(&args.workspace);
         let plan =
             match tools::campaign::fetch_plan(self.ch(), ws.clone(), args.profile.clone()).await {
@@ -917,11 +933,11 @@ impl VxmcpServer {
         if let Some(refused) = tools::campaign::refusal(&plan, &Budget::from_env()) {
             return Ok(refused.into());
         }
-        let question = tools::campaign::start_confirmation(&ws, &plan);
+        let question = tools::campaign::start_confirmation(&ws, &plan, &instance);
         let bound = serde_json::json!({
             "workspace": ws, "profile": args.profile, "request_id": args.request_id,
             "caller": args.caller, "unlocked": args.unlocked, "trials": plan.trials.len(),
-            "reference_workspace": args.reference_workspace,
+            "reference_workspace": args.reference_workspace, "instance": instance,
         });
         let run = tools::campaign::start(self.ch(), ws, args);
         self.gated(

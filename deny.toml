@@ -7,6 +7,15 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+    # chrono is flagged unmaintained (RUSTSEC-2026-0543, 2026-11-18): an informational advisory,
+    # not a vulnerability. vxmcp does not use it. It is reached only through rmcp, which turns on
+    # schemars' `chrono04` feature unconditionally (`cargo tree -i chrono -e features`), and the
+    # latest rmcp, 3.11.0, still does (checked 2026-11-18), so no bump removes it. EXPIRES
+    # 2027-02-18: cargo-deny does not enforce this date, so re-check then and delete this entry
+    # once rmcp drops chrono.
+    "RUSTSEC-2026-0543",
+]
 
 [licenses]
 version = 2
