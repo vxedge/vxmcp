@@ -6,6 +6,20 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- The fleet view (vxedge 0.33.0, `ARCHITECTURE.md` §5). `run_status` reads every run's status in one
+  call, or the runs named in `run_ids`; a named run that isn't up is an entry with `error_reason`.
+  `run_down` takes the runs in `run_ids`, or every run with `all`, down as one `run.down` job whose
+  children are each run's own down. Both refuse an empty or repeated id before any RPC, and
+  `run_down` also needs exactly one of `run_ids` and `all`. Its confirmation lists the runs up when it
+  asks, with their slots and workspaces. The arguments are bound to the confirmation ticket; the listing
+  is not, so `all` takes down whatever is up when the job runs.
+
+### Changed
+
+- `vxedge-api` pinned to vxedge `v0.33.0`.
+
 ## [0.6.0] - 2026-11-18
 
 Follows vxedge 0.32.0: several runs share a host, each in its own instance slot. `experiment_up`,

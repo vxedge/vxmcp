@@ -29,6 +29,7 @@ is a tool error the agent can read, with the typed reason:
 | `host_capabilities` | `HostService.Capabilities` |
 | `workspace_plan` | `WorkspaceService.Plan` |
 | `run_list`, `run_get` | `RunService.List`, `RunService.Get` |
+| `run_status` | `RunService.Status`: every run's status, or the named runs', in one call |
 | `experiment_status` | `ExperimentService.Status` |
 | `vehicle_status` | `VehicleService.Status` |
 | `gateway_status` | `GatewayService.Status` |
@@ -56,6 +57,7 @@ is a tool error the agent can read, with the typed reason:
 |---|---|
 | `experiment_up`, `experiment_down` | `ExperimentService.Up`, `.Down` |
 | `vehicle_up`, `vehicle_down` | `VehicleService.Up`, `.Down` |
+| `run_down` | `RunService.Down`: the runs in `run_ids`, or every run with `all`, as one `run.down` job |
 | `svc_up`, `svc_down` | `SvcService.Up`, `.Down` |
 | `traffic_up`, `traffic_down` | `TrafficService.Up`, `.Down` |
 | `measure_start`, `measure_stop` | `MeasurementService.Start`, `.Stop` |
@@ -74,7 +76,9 @@ Several runs can share a host, each in an instance slot (`0`-`9`, then `a`-`z`).
 a run take an optional `run_id` from `run_list`; omitted, it means the workspace's run, or the only
 run. `experiment_up`, `vehicle_up` and `campaign_start` take an optional `instance`; omitted, the
 workspace keeps its run's slot or takes the lowest free one, and a campaign holds its slot until it
-ends. Confirmations name the slot or the run. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
+ends. Confirmations name the slot or the run. `run_status` and `run_down` act on several runs at once;
+`run_down`'s confirmation lists the runs up when it asks, and with `all` takes down whatever is up
+when the job runs. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
 `request_id`, so a retry returns the original job instead of starting the work twice (a retried
 campaign resumes and skips the trials already archived). Every read tool carries `readOnlyHint`.
 
