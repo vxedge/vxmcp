@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "vxmcp: an MCP server over vxAPI for the vxedge testbed"
+title: "vxmcp: an MCP server over vxAPI for vxedge"
 type: software
 authors:
   - family-names: "Djaafri"
@@ -25,7 +25,7 @@ abstract: >-
   tool asks the user to confirm first. It targets MCP specification 2026-07-28.
 references:
   - type: software
-    title: "vxedge: specification and results of an all-software SDV network-slicing testbed"
+    title: "vxedge: specification and results of a virtual vehicle with environmental parity"
     authors:
       - family-names: "Djaafri"
         given-names: "Fouzi"

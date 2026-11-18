@@ -8,7 +8,7 @@ agent's job.
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/vxedge/vxmcp/actions/workflows/ci.yml/badge.svg)](https://github.com/vxedge/vxmcp/actions/workflows/ci.yml)
 
-vxedge is an open, all-software testbed for mapping 5G network slices onto zonal and central software-defined-vehicle (SDV) E/E architectures on a single machine. Every published number ships with the manifest and image digests that produced it.
+`vxmcp` is the MCP server of vxedge, a virtual vehicle with environmental parity, for packaged, measured SDV experiments. Every result ships with the manifest and image digests that produced it.
 
 ## Tools
 
