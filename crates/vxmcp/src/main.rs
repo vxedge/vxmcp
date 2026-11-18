@@ -47,7 +47,7 @@ use tools::package::{PackageInspectArgs, PackagePullArgs};
 use tools::result::{
     ResultCompareArgs, ResultFetchArgs, ResultGetArgs, ResultListArgs, ResultVerdictArgs,
 };
-use tools::run::RunArgs;
+use tools::run::{RunArgs, RunDownArgs, RunStatusArgs};
 use tools::stream::{LogsArgs, MetricsArgs, RecordsArgs};
 use tools::svc::{SvcDownArgs, SvcStatusArgs, SvcUpArgs};
 use tools::telemetry::CollectArgs;
@@ -183,6 +183,21 @@ impl VxmcpServer {
         Parameters(args): Parameters<RunArgs>,
     ) -> Result<CallToolResult, McpError> {
         finish(tools::run::get(self.ch(), args).await)
+    }
+
+    #[tool(
+        description = "The status of every run on this host in one call, or of the runs named: \
+                        each run, its rollup, components, gateway and nodes, lowest slot first. A \
+                        named run that isn't up gets an entry with error_reason instead of \
+                        failing the call.",
+        annotations(read_only_hint = true)
+    )]
+    async fn run_status(
+        &self,
+        Parameters(args): Parameters<RunStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        tools::run::check_status(&args)?;
+        finish(tools::run::status(self.ch(), args).await)
     }
 
     #[tool(
@@ -584,6 +599,29 @@ impl VxmcpServer {
             run,
         )
         .await
+    }
+
+    #[tool(
+        description = "Tear down several runs, named in run_ids, or every run with all, as one \
+                        run.down job: each run's own teardown is a child job carrying its run_id, \
+                        one after another and best effort. Refused as a whole if a running \
+                        campaign holds any of their slots. Asks the human user to confirm \
+                        first. Returns the job.",
+        annotations(destructive_hint = true)
+    )]
+    async fn run_down(
+        &self,
+        Parameters(args): Parameters<RunDownArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        tools::run::check_down(&args)?;
+        let question = tools::run::down_confirmation(&args, &tools::run::up_now(self.ch()).await);
+        let bound = serde_json::json!({ "run_ids": args.run_ids, "all": args.all });
+        let run = tools::run::down(self.ch(), args);
+        self.gated(&ctx, state, responses, "run_down", bound, question, run)
+            .await
     }
 
     #[tool(
