@@ -5,8 +5,9 @@
 //! - `experiment_status` → `Status`.
 //! - `experiment_up` / `experiment_down` → `Up` / `Down`, behind `crate::confirm`. The path is
 //!   resolved once and that same string is confirmed and sent, so a ticket can't cover a
-//!   different target than the RPC acts on. Down refuses unless the workspace is the experiment
-//!   active on this host (vxedge `e3753be`); its confirmation says so.
+//!   different target than the RPC acts on. Up runs in an instance slot (`instance`, or the
+//!   workspace's own, or the lowest free one); Down acts on the workspace's run, or the one
+//!   `run_id` names, and vxedged refuses when that names none or several.
 
 use rmcp::model::CallToolResult;
 use vxedge_api::v1::experiment_service_client::ExperimentServiceClient;
@@ -15,12 +16,17 @@ use vxedge_api::v1::{
     ExperimentDownRequest, ExperimentStatusRequest, ExperimentUpRequest, ManifestRef,
 };
 
+use super::out::{run_words, slot_words};
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentStatusArgs {
     /// Path to the experiment workspace — the directory holding its documents and its descriptor
     /// (`vxp.yaml`). Relative paths are resolved against this server's
     /// own working directory, not the caller's.
     pub workspace: String,
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
+    #[serde(default)]
+    pub run_id: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -34,18 +40,27 @@ pub struct ExperimentUpArgs {
     /// `services`, `compute`, `signal-plane`. Omitted or empty means every stage.
     #[serde(default)]
     pub stages: Vec<String>,
+    /// The instance slot to run in: one character, `0`-`9` or `a`-`z`. Omit it to keep this
+    /// workspace's run's slot, or take the lowest free one. A slot another run holds is refused
+    /// with `ERROR_REASON_HELD_BY_RUN`.
+    #[serde(default)]
+    pub instance: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ExperimentDownArgs {
     /// Path to the experiment workspace to tear down — the directory holding its documents and
-    /// its descriptor. It must be the experiment active on this host; vxedged refuses anything else. You
-    /// will be asked to confirm.
+    /// its descriptor. You will be asked to confirm.
     pub workspace: String,
     /// Stages to tear down, spelled as for `experiment_up`. Omitted or empty means every stage,
     /// in reverse dependency order.
     #[serde(default)]
     pub stages: Vec<String>,
+    /// The run to tear down, from `run_list`. Omit it to mean this workspace's run; vxedged
+    /// refuses with `ERROR_REASON_NO_ACTIVE_RUN` when it has none and
+    /// `ERROR_REASON_RUN_AMBIGUOUS` when it has several.
+    #[serde(default)]
+    pub run_id: Option<String>,
 }
 
 /// Absolutize a workspace path client-side so the daemon resolves it correctly regardless of
@@ -79,24 +94,30 @@ pub fn stage_words(stages: &[String]) -> String {
 }
 
 /// The question the human sees before `experiment_up` runs, for an already-resolved path.
-pub fn up_confirmation(resolved_workspace: &str, stages: &[String]) -> String {
+pub fn up_confirmation(resolved_workspace: &str, stages: &[String], instance: &str) -> String {
     format!(
-        "Bring up the experiment at `{resolved_workspace}` ({}): provisions this host's gateway \
+        "Bring up the experiment at `{resolved_workspace}` ({}, {}): provisions its gateway side \
          and the zones, services, compute and signal plane it declares. vxedged checks the \
-         host first and refuses if it can't run it or another job holds it. This affects \
-         anyone using this host's testbed. Confirm?",
-        stage_words(stages)
+         host first and refuses if it can't run it, another job holds it or the slot is taken. \
+         This affects anyone using this host's testbed. Confirm?",
+        stage_words(stages),
+        slot_words(instance)
     )
 }
 
 /// The question the human sees before `experiment_down` runs, for an already-resolved path.
 /// Checked against vxedged's `ExperimentService.Down` (design doc: confirmation text matches
 /// the daemon, not the RPC's name).
-pub fn down_confirmation(resolved_workspace: &str, stages: &[String]) -> String {
+pub fn down_confirmation(
+    resolved_workspace: &str,
+    stages: &[String],
+    run_id: Option<&str>,
+) -> String {
     format!(
-        "Tear down the experiment at `{resolved_workspace}` ({}): stops the services it \
-         declares, its zones, and this host's gateway. vxedged refuses if it isn't the experiment \
-         active on this host. This affects anyone using this host's testbed. Confirm?",
+        "Tear down {} of the experiment at `{resolved_workspace}` ({}): stops its traffic and \
+         measurements, the services it declares, its zones and its gateway side. vxedged refuses \
+         if that run isn't up. This affects anyone using this host's testbed. Confirm?",
+        run_words(run_id),
         stage_words(stages)
     )
 }
@@ -105,12 +126,14 @@ pub async fn up(
     channel: tonic::transport::Channel,
     resolved_workspace: String,
     stages: &[String],
+    instance: String,
 ) -> anyhow::Result<CallToolResult> {
     let stages = super::out::stages(stages)?;
     let job = ExperimentServiceClient::new(channel)
         .up(ExperimentUpRequest {
             manifest: path_ref(resolved_workspace),
             stages,
+            instance,
             ..Default::default()
         })
         .await?
@@ -123,12 +146,14 @@ pub async fn down(
     channel: tonic::transport::Channel,
     resolved_workspace: String,
     stages: &[String],
+    run_id: Option<String>,
 ) -> anyhow::Result<CallToolResult> {
     let stages = super::out::stages(stages)?;
     let job = ExperimentServiceClient::new(channel)
         .down(ExperimentDownRequest {
             manifest: path_ref(resolved_workspace),
             stages,
+            run: super::out::run_ref(run_id),
         })
         .await?
         .into_inner();
@@ -142,6 +167,7 @@ pub async fn status(
     let resp = ExperimentServiceClient::new(channel)
         .status(ExperimentStatusRequest {
             manifest: path_ref(resolve_workspace(&args.workspace)),
+            run: super::out::run_ref(args.run_id),
         })
         .await?
         .into_inner();
@@ -158,24 +184,33 @@ mod tests {
             serde_json::from_value(serde_json::json!({ "workspace": "/tmp/exp-003-ws" })).unwrap();
         assert_eq!(args.workspace, "/tmp/exp-003-ws");
         assert!(args.stages.is_empty());
+        assert!(args.run_id.is_none());
     }
 
     #[test]
-    fn down_confirmation_names_the_workspace_and_what_it_stops() {
+    fn down_confirmation_names_the_run_the_workspace_and_what_it_stops() {
         assert_eq!(
-            down_confirmation("/ws/exp-003-ws", &[]),
-            "Tear down the experiment at `/ws/exp-003-ws` (every stage): stops the services it \
-             declares, its zones, and this host's gateway. vxedged refuses if it isn't the \
-             experiment active on this host. This affects anyone using this host's testbed. \
-             Confirm?"
+            down_confirmation("/ws/exp-003-ws", &[], None),
+            "Tear down this workspace's run of the experiment at `/ws/exp-003-ws` (every stage): \
+             stops its traffic and measurements, the services it declares, its zones and its \
+             gateway side. vxedged refuses if that run isn't up. This affects anyone using this \
+             host's testbed. Confirm?"
+        );
+        assert!(
+            down_confirmation("/ws/e", &[], Some("run-7"))
+                .starts_with("Tear down run `run-7` of the experiment at `/ws/e`")
         );
     }
 
     #[test]
-    fn up_confirmation_names_the_stages_and_ends_with_the_shared_host_line() {
-        let text = up_confirmation("/ws/e", &["gateway".into(), "zones".into()]);
-        assert!(text.starts_with("Bring up the experiment at `/ws/e` (stages gateway, zones)"));
+    fn up_confirmation_names_the_stages_and_slot_and_ends_with_the_shared_host_line() {
+        let text = up_confirmation("/ws/e", &["gateway".into(), "zones".into()], "");
+        assert!(text.starts_with(
+            "Bring up the experiment at `/ws/e` (stages gateway, zones, in this workspace's \
+             slot, or the lowest free one)"
+        ));
         assert!(text.ends_with("This affects anyone using this host's testbed. Confirm?"));
+        assert!(up_confirmation("/ws/e", &[], "4").contains("(every stage, in instance slot 4)"));
     }
 
     #[test]

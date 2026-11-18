@@ -15,7 +15,7 @@ use super::experiment::{path_ref, resolve_workspace};
 pub struct TrafficStatusArgs {
     /// Path to the experiment workspace that declares the traffic profiles.
     pub workspace: String,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
 }
@@ -28,7 +28,7 @@ pub struct TrafficArgs {
     /// Profile names to act on. Omitted or empty means every profile the workspace declares.
     #[serde(default)]
     pub profiles: Vec<String>,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
     /// `traffic_up` only: an id of your choosing. Retrying with the same id returns the
@@ -64,21 +64,31 @@ pub async fn status(
 }
 
 /// The question the human sees before `traffic_up` runs, for an already-resolved path.
-pub fn up_confirmation(resolved_workspace: &str, profiles: &[String]) -> String {
+pub fn up_confirmation(
+    resolved_workspace: &str,
+    profiles: &[String],
+    run_id: Option<&str>,
+) -> String {
     format!(
-        "Start {} that `{resolved_workspace}` declares, in the run active on this host: load \
+        "Start {} that `{resolved_workspace}` declares, in {run}: load \
          generators send traffic through the slices until each profile's duration ends or \
          traffic_down stops them. This affects anyone using this host's testbed. Confirm?",
-        profile_words(profiles)
+        profile_words(profiles),
+        run = super::out::run_words(run_id)
     )
 }
 
 /// The question the human sees before `traffic_down` runs, for an already-resolved path.
-pub fn down_confirmation(resolved_workspace: &str, profiles: &[String]) -> String {
+pub fn down_confirmation(
+    resolved_workspace: &str,
+    profiles: &[String],
+    run_id: Option<&str>,
+) -> String {
     format!(
-        "Stop {} that `{resolved_workspace}` declares, in the run active on this host. This \
+        "Stop {} that `{resolved_workspace}` declares, in {run}. This \
          affects anyone using this host's testbed. Confirm?",
-        profile_words(profiles)
+        profile_words(profiles),
+        run = super::out::run_words(run_id)
     )
 }
 
@@ -131,9 +141,9 @@ mod tests {
 
     #[test]
     fn confirmations_name_the_profiles() {
-        assert!(up_confirmation("/ws/e", &[]).starts_with("Start every traffic profile"));
-        let t = down_confirmation("/ws/e", &["embb".into()]);
-        assert!(t.starts_with("Stop traffic profiles embb that `/ws/e` declares"));
+        assert!(up_confirmation("/ws/e", &[], None).starts_with("Start every traffic profile"));
+        let t = down_confirmation("/ws/e", &["embb".into()], Some("r1"));
+        assert!(t.starts_with("Stop traffic profiles embb that `/ws/e` declares, in run `r1`."));
         assert!(t.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }
 }

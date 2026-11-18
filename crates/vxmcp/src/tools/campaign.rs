@@ -58,6 +58,10 @@ pub struct CampaignStartArgs {
     /// holds each. Recorded with the campaign, so its final verdict can read them.
     #[serde(default)]
     pub reference_workspace: Option<String>,
+    /// The instance slot every trial runs in: one character, `0`-`9` or `a`-`z`. Omit it to take
+    /// the lowest free slot at start. The campaign holds it until it ends.
+    #[serde(default)]
+    pub instance: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -183,18 +187,23 @@ pub fn refusal(plan: &CampaignPlan, budget: &Budget) -> Option<CallToolResult> {
 }
 
 /// The question the human sees once before `campaign_start` runs.
-pub fn start_confirmation(resolved_workspace: &str, plan: &CampaignPlan) -> String {
+pub fn start_confirmation(resolved_workspace: &str, plan: &CampaignPlan, instance: &str) -> String {
     let profile = if plan.profile.is_empty() {
         "no profile".to_string()
     } else {
         format!("profile `{}`", plan.profile)
     };
     let minutes = (plan.estimated_s / 60.0).ceil();
+    let slot = if instance.is_empty() {
+        "the lowest free instance slot".to_string()
+    } else {
+        format!("instance slot {instance}")
+    };
     format!(
         "Run the campaign `{resolved_workspace}` declares, with {profile}: {} trials ({} points x \
          {} repetitions), each provisioned, measured, archived and torn down on its own, for \
-         about {minutes} minutes. Only one campaign runs at a time on this host. This affects \
-         anyone using this host's testbed. Confirm?",
+         about {minutes} minutes. It holds {slot} until it ends. Only one campaign runs at a \
+         time on this host. This affects anyone using this host's testbed. Confirm?",
         plan.trials.len(),
         plan.points,
         plan.repetitions
@@ -218,6 +227,7 @@ pub async fn start(
             caller,
             unlocked: args.unlocked,
             reference_workspace: args.reference_workspace.as_deref().and_then(package_ref),
+            instance: super::out::instance(args.instance.as_deref())?,
             ..Default::default()
         })
         .await?
@@ -353,8 +363,14 @@ mod tests {
 
     #[test]
     fn the_confirmation_names_trials_wall_time_and_profile() {
-        let q = start_confirmation("/ws/e", &plan(5, 610.0));
+        let q = start_confirmation("/ws/e", &plan(5, 610.0), "");
         assert!(q.contains("5 trials (5 points x 1 repetitions)"), "{q}");
+        assert!(
+            q.contains("It holds the lowest free instance slot until it ends."),
+            "{q}"
+        );
+        let q = start_confirmation("/ws/e", &plan(5, 610.0), "b");
+        assert!(q.contains("It holds instance slot b until it ends."), "{q}");
         assert!(q.contains("about 11 minutes"), "{q}");
         assert!(q.contains("profile `quick`"), "{q}");
     }

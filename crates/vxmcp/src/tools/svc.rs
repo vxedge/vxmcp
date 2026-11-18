@@ -22,7 +22,7 @@ pub struct SvcStatusArgs {
     /// service runs on this host.
     #[serde(default)]
     pub workspace: Option<String>,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean the workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
 }
@@ -48,16 +48,21 @@ pub struct SvcUpArgs {
     pub service_type: String,
     /// The experiment workspace that declares the service.
     pub workspace: String,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
 }
 
 /// The question the human sees before `svc_up` runs, for an already-resolved path.
-pub fn up_confirmation(service_type: &str, resolved_workspace: &str) -> String {
+pub fn up_confirmation(
+    service_type: &str,
+    resolved_workspace: &str,
+    run_id: Option<&str>,
+) -> String {
+    let run = super::out::run_words(run_id);
     format!(
-        "Start the `{service_type}` service that `{resolved_workspace}` declares, in the run \
-         active on this host. vxedged refuses if no run is up or another job holds the host. \
+        "Start the `{service_type}` service that `{resolved_workspace}` declares, in {run}. \
+         vxedged refuses if that run isn't up or another job holds the host. \
          This affects anyone using this host's testbed. Confirm?"
     )
 }
@@ -92,10 +97,14 @@ pub struct SvcDownArgs {
 
 /// The question the human sees before `svc_down` runs. It must say what `SvcService.Down`
 /// really does (design doc: confirmation text matches the daemon, not the RPC's name).
-pub fn down_confirmation(service_type: &str) -> String {
+pub fn down_confirmation(service_type: &str, run_id: Option<&str>) -> String {
+    let run = match run_id.filter(|r| !r.is_empty()) {
+        Some(r) => format!("run `{r}`"),
+        None => "the only run".to_string(),
+    };
     format!(
-        "Stop the `{service_type}` service on this host: where the active run places it on a \
-         node, or else on the host, whichever experiment started it. This affects anyone using \
+        "Stop the `{service_type}` service on this host: where {run} places it on a node, \
+         or else on the host, whichever experiment started it. This affects anyone using \
          this host's testbed. Confirm?"
     )
 }
@@ -138,8 +147,8 @@ mod tests {
     #[test]
     fn down_confirmation_names_the_service_and_the_shared_host() {
         assert_eq!(
-            down_confirmation("ota"),
-            "Stop the `ota` service on this host: where the active run places it on a node, or \
+            down_confirmation("ota", None),
+            "Stop the `ota` service on this host: where the only run places it on a node, or \
              else on the host, whichever experiment started it. This affects anyone using this \
              host's testbed. Confirm?"
         );
@@ -147,7 +156,7 @@ mod tests {
 
     #[test]
     fn up_confirmation_names_the_service_and_the_workspace() {
-        let t = up_confirmation("telemetry", "/ws/e");
+        let t = up_confirmation("telemetry", "/ws/e", None);
         assert!(t.starts_with("Start the `telemetry` service that `/ws/e` declares"));
         assert!(t.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }

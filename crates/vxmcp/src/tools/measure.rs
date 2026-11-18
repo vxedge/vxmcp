@@ -15,7 +15,7 @@ use super::experiment::{path_ref, resolve_workspace};
 pub struct MeasureStatusArgs {
     /// Path to the experiment workspace that declares the measurements.
     pub workspace: String,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
 }
@@ -33,7 +33,7 @@ pub struct MeasureArgs {
     /// experiment's `method.duration_s`.
     #[serde(default)]
     pub duration_s: Option<u32>,
-    /// The run, from `run_list`. Omit it to mean the only run.
+    /// The run, from `run_list`. Omit it to mean this workspace's run, or the only run.
     #[serde(default)]
     pub run_id: Option<String>,
     /// `measure_start` only: an id of your choosing. Retrying with the same id returns the
@@ -65,21 +65,27 @@ pub async fn status(
 }
 
 /// The question the human sees before `measure_start` runs, for an already-resolved path.
-pub fn start_confirmation(resolved_workspace: &str, ids: &[String]) -> String {
+pub fn start_confirmation(
+    resolved_workspace: &str,
+    ids: &[String],
+    run_id: Option<&str>,
+) -> String {
     format!(
-        "Start {} that `{resolved_workspace}` declares, in the run active on this host: probes \
+        "Start {} that `{resolved_workspace}` declares, in {run}: probes \
          run inside the nodes and send through the slices until each sender's duration ends or \
          measure_stop stops them. This affects anyone using this host's testbed. Confirm?",
-        id_words(ids)
+        id_words(ids),
+        run = super::out::run_words(run_id)
     )
 }
 
 /// The question the human sees before `measure_stop` runs, for an already-resolved path.
-pub fn stop_confirmation(resolved_workspace: &str, ids: &[String]) -> String {
+pub fn stop_confirmation(resolved_workspace: &str, ids: &[String], run_id: Option<&str>) -> String {
     format!(
-        "Stop {} that `{resolved_workspace}` declares, in the run active on this host. This \
+        "Stop {} that `{resolved_workspace}` declares, in {run}. This \
          affects anyone using this host's testbed. Confirm?",
-        id_words(ids)
+        id_words(ids),
+        run = super::out::run_words(run_id)
     )
 }
 
@@ -132,9 +138,11 @@ mod tests {
 
     #[test]
     fn confirmations_name_the_measurements() {
-        assert!(start_confirmation("/ws/e", &[]).starts_with("Start every measurement"));
-        let t = stop_confirmation("/ws/e", &["ctl-rtt".into()]);
-        assert!(t.starts_with("Stop measurements ctl-rtt that `/ws/e` declares"));
+        assert!(start_confirmation("/ws/e", &[], None).starts_with("Start every measurement"));
+        let t = stop_confirmation("/ws/e", &["ctl-rtt".into()], None);
+        assert!(t.starts_with(
+            "Stop measurements ctl-rtt that `/ws/e` declares, in this workspace's run."
+        ));
         assert!(t.ends_with("This affects anyone using this host's testbed. Confirm?"));
     }
 }

@@ -79,11 +79,46 @@ fn code_name(code: tonic::Code) -> String {
     out
 }
 
-/// Addresses a run by id; empty or omitted means the only run, which vxedged resolves.
+/// Addresses a run by id; empty or omitted means the workspace's run, or the only run, which
+/// vxedged resolves.
 pub fn run_ref(run_id: Option<String>) -> Option<RunRef> {
     run_id
         .filter(|id| !id.is_empty())
         .map(|run_id| RunRef { run_id })
+}
+
+/// An instance slot as `up` takes it: one character, `0`-`9` or `a`-`z`. Empty or omitted means
+/// none was asked for.
+pub fn instance(instance: Option<&str>) -> Result<String, ArgError> {
+    match instance.unwrap_or_default() {
+        "" => Ok(String::new()),
+        s if s.len() == 1
+            && s.bytes()
+                .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase()) =>
+        {
+            Ok(s.to_string())
+        }
+        s => Err(ArgError(format!(
+            "unknown instance slot `{s}`: use one character, 0-9 or a-z"
+        ))),
+    }
+}
+
+/// How an `up` confirmation names the slot it runs in.
+pub fn slot_words(instance: &str) -> String {
+    if instance.is_empty() {
+        "in this workspace's slot, or the lowest free one".to_string()
+    } else {
+        format!("in instance slot {instance}")
+    }
+}
+
+/// How a `down` confirmation names the run it acts on.
+pub fn run_words(run_id: Option<&str>) -> String {
+    match run_id.filter(|r| !r.is_empty()) {
+        Some(r) => format!("run `{r}`"),
+        None => "this workspace's run".to_string(),
+    }
 }
 
 /// Stage names as the CLI spells them (`gateway`, `zones`, `services`, `compute`,
@@ -112,6 +147,11 @@ pub fn check_stages(names: &[String]) -> Result<(), McpError> {
     stages(names)
         .map(|_| ())
         .map_err(|e| McpError::invalid_params(e.to_string(), None))
+}
+
+/// Checks an instance slot before the human is asked, so a typo never reaches a confirmation.
+pub fn check_instance(slot: Option<&str>) -> Result<String, McpError> {
+    instance(slot).map_err(|e| McpError::invalid_params(e.0, None))
 }
 
 #[cfg(test)]
@@ -190,6 +230,17 @@ mod tests {
                 run_id: "run-1".into()
             })
         );
+    }
+
+    #[test]
+    fn an_instance_is_one_slot_character() {
+        assert_eq!(instance(None).unwrap(), "");
+        assert_eq!(instance(Some("")).unwrap(), "");
+        assert_eq!(instance(Some("3")).unwrap(), "3");
+        assert_eq!(instance(Some("z")).unwrap(), "z");
+        for bad in ["A", "10", "-", " "] {
+            assert!(instance(Some(bad)).is_err(), "{bad}");
+        }
     }
 
     #[test]
