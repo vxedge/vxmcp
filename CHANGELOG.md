@@ -6,6 +6,13 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-19
+
+Parity with vxAPI. `package_import` uploads a packed package to a daemon that shares no filesystem
+with vxmcp, behind the confirmation. A test in CI now fails when a vxAPI RPC has neither a tool nor a
+recorded exclusion. Still pinned to vxedge 0.33.0's API, which vxedge 0.34.x left unchanged. All
+additive: no existing tool or argument changes.
+
 ### Added
 
 - `package_import` (`PackageService.Import`): uploads a packed `.vxp` from the host vxmcp runs on into
