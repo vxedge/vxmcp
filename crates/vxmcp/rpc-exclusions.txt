@@ -1,0 +1,18 @@
+# vxAPI RPCs that vxmcp deliberately exposes as no tool, one per line: `Service.Rpc: reason`.
+# Every other RPC in the pinned vxedge-api has a tool; tests/parity.rs fails on an RPC with neither,
+# on an exclusion for an RPC that has a tool, and on an exclusion for an RPC that no longer exists.
+# An RPC is excluded only when a tool would add nothing an agent cannot already do.
+
+GatewayService.Up: covered by `stages` on `vehicle_up` and `experiment_up`; a tool per stage would double the confirmation surface without adding a capability
+GatewayService.Down: covered by `vehicle_down`, `experiment_down` and `run_down`, which take each stage down in order
+ZoneService.Up: covered by `stages` on `vehicle_up` and `experiment_up`; a tool per stage would double the confirmation surface without adding a capability
+ZoneService.Down: covered by `vehicle_down`, `experiment_down` and `run_down`, which take each stage down in order
+ComputeService.Up: covered by `stages` on `vehicle_up` and `experiment_up`; a tool per stage would double the confirmation surface without adding a capability
+ComputeService.Down: covered by `vehicle_down`, `experiment_down` and `run_down`, which take each stage down in order
+GatewayService.Apply: stages host state without starting it; `workspace_plan` gives an agent the plan and its host checks without changing the host
+ZoneService.Apply: not built in vxedged (deprecated in the proto); manifests define the topology
+ComputeService.Apply: not built in vxedged (deprecated in the proto); manifests define the topology
+ZoneService.Remove: not built in vxedged (deprecated in the proto); manifests define the topology
+ComputeService.Remove: not built in vxedged (deprecated in the proto); manifests define the topology
+ZoneService.PushImage: not built in vxedged (deprecated in the proto); parts come from the registry
+ComputeService.PushImage: not built in vxedged (deprecated in the proto); parts come from the registry

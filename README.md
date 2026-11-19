@@ -65,6 +65,7 @@ is a tool error the agent can read, with the typed reason:
 | `telemetry_collect` | `TelemetryService.Collect` |
 | `campaign_start` | `CampaignService.Start`, after `Plan`: one confirmation per campaign |
 | `package_pull` | `PackageService.Pull` |
+| `package_import` | `PackageService.Import`: uploads a packed `.vxp` from the host vxmcp runs on, when vxedged runs elsewhere |
 | `job_cancel` | `JobService.Cancel` |
 
 `result_fetch` (`ResultService.Fetch`) asks too, since it writes a file where vxmcp runs, and
@@ -81,6 +82,13 @@ ends. Confirmations name the slot or the run. `run_status` and `run_down` act on
 when the job runs. `traffic_up`, `measure_start`, `noscheck_verify`, `campaign_start` and `package_pull` take a
 `request_id`, so a retry returns the original job instead of starting the work twice (a retried
 campaign resumes and skips the trials already archived). Every read tool carries `readOnlyHint`.
+
+**Parity with vxAPI.** Every vxAPI RPC has a tool, or is excluded with its reason in
+[`crates/vxmcp/rpc-exclusions.txt`](crates/vxmcp/rpc-exclusions.txt). An RPC is excluded only when a
+tool would add nothing an agent cannot already do: gateway, zone and compute up and down are the
+`stages` of `vehicle_up` and `experiment_up`, and the RPCs vxedged has not built have no tool. A test
+in CI (`crates/vxmcp/tests/parity.rs`) reads the RPCs from the pinned `vxedge-api` protos and fails
+when one has neither.
 
 **Campaign budgets.** `campaign_start` reads the campaign's `Plan` first. It refuses a campaign
 with a plan problem, with that problem's `ErrorReason`, before anyone is asked. It also refuses
