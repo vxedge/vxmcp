@@ -6,6 +6,19 @@ All notable changes to this repo are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- `package_import` (`PackageService.Import`): uploads a packed `.vxp` from the host vxmcp runs on into
+  the package cache of the host vxedged runs on, for when the two share no filesystem. It reads the
+  file and its digest before asking, the confirmation names both, and the ticket binds the digest, so
+  a file changed after the question is asked about again. vxedged refuses bytes that do not hash to
+  the digest.
+- Parity with vxAPI (Track U, U4): `crates/vxmcp/tests/parity.rs` reads every RPC from the pinned
+  `vxedge-api` protos and fails in CI when one has neither a tool nor an exclusion with its reason in
+  `crates/vxmcp/rpc-exclusions.txt`, or when an exclusion is stale. Excluded: gateway, zone and
+  compute up and down (the `stages` of `vehicle_up` and `experiment_up`), `GatewayService.Apply`
+  (`workspace_plan` reads the plan without changing the host), and the RPCs vxedged has not built.
+
 ## [0.7.0] - 2026-11-18
 
 Follows vxedge 0.33.0's fleet view. `run_status` reads every run's status in one call, or the named

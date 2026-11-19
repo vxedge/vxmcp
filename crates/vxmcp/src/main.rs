@@ -43,7 +43,7 @@ use tools::job::{JobCancelArgs, JobGetArgs, JobListArgs, JobWatchArgs};
 use tools::measure::{MeasureArgs, MeasureStatusArgs};
 use tools::noscheck::NosCheckArgs;
 use tools::out::finish;
-use tools::package::{PackageInspectArgs, PackagePullArgs};
+use tools::package::{PackageImportArgs, PackageInspectArgs, PackagePullArgs};
 use tools::result::{
     ResultCompareArgs, ResultFetchArgs, ResultGetArgs, ResultListArgs, ResultVerdictArgs,
 };
@@ -1010,6 +1010,39 @@ impl VxmcpServer {
         let run = tools::package::pull(self.ch(), args);
         self.gated(&ctx, state, responses, "package_pull", bound, question, run)
             .await
+    }
+
+    #[tool(
+        description = "Upload a packed package (`.vxp`) from the host vxmcp runs on into the \
+                        package cache of the host vxedged runs on, for when the two share no \
+                        filesystem. vxedged checks the bytes against their digest. Asks the human \
+                        user to confirm first. Returns the job.",
+        annotations(destructive_hint = false)
+    )]
+    async fn package_import(
+        &self,
+        Parameters(args): Parameters<PackageImportArgs>,
+        RequestState(state): RequestState,
+        InputResponses(responses): InputResponses,
+        ctx: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, McpError> {
+        let (digest, bytes) = tools::package::read_packed(&args.file)
+            .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+        let question = tools::package::import_confirmation(&args.file, &digest, bytes.len());
+        // The ticket binds the digest as well as the path: a file changed between the question and
+        // the answer no longer matches, so it is asked again.
+        let bound = serde_json::json!({ "file": args.file, "digest": digest });
+        let run = tools::package::import(self.ch(), digest, bytes);
+        self.gated(
+            &ctx,
+            state,
+            responses,
+            "package_import",
+            bound,
+            question,
+            run,
+        )
+        .await
     }
 
     #[tool(
